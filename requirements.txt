@@ -1,1 +1,4 @@
 streamlit>=1.40,<2
+Flask>=3.0,<4
+PyMySQL>=1.1,<2
+PyYAML>=6,<7
