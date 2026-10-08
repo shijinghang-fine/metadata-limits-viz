@@ -458,10 +458,6 @@
         </div>
     </header>
     <div class="toolbar">
-        <div class="view-switch" role="group" aria-label="查看模式">
-            <button type="button" id="standardMode" class="view-button">上下限标准查看</button>
-            <button type="button" id="compareMode" class="view-button active">时间段上下限对比</button>
-        </div>
         <div class="filter-group"><label for="metadata">元数据</label><select id="metadata" class="meta"></select></div>
         <div class="filter-group"><label for="spec">钢种规格</label><select id="spec">
                 <option value="全部">全部</option>
@@ -474,7 +470,7 @@
         <div class="toolbar-secondary">
             <div class="result-count" id="resultCount">符合条件：0 条</div>
             <button type="button" id="resetFilters" class="reset-button">重置筛选</button>
-            <button type="button" id="boundsOnlyReset" class="reset-button compare-only">复位只看上下限</button>
+            <button type="button" id="boundsOnlyReset" class="reset-button compare-only" style="display:none">复位只看上下限</button>
             <span class="mode-badge">浇铸模式</span>
             <div class="hint">左键旋转 · 右键平移 · 滚轮缩放 · 单击高亮 · 双击取消</div>
         </div>
@@ -535,7 +531,7 @@
         }
         let selectedStartDate = minAvailableDate;
         let selectedEndDate = availableDates.find(d => inclusiveDays(selectedStartDate, d) >= 7) || maxAvailableDate;
-        let viewMode = "compare";
+        let viewMode = "standard";
         let actualByKey = aggregateActual(selectedStartDate, selectedEndDate);
         const actualFor = d => actualByKey.get(conditionKey(d.metadataCode, d.steel, d.width, d.speed));
         const isAbnormal = (d, actual) => actual && (actual.lower < d.lower || actual.upper > d.upper);
@@ -543,7 +539,7 @@
 
         const metadata = document.getElementById("metadata"), spec = document.getElementById("spec"), resultCount = document.getElementById("resultCount"), resetFilters = document.getElementById("resetFilters"), boundsOnlyReset = document.getElementById("boundsOnlyReset"), detail = document.getElementById("detail"), view = document.getElementById("view"), canvas = document.getElementById("canvas"), tooltip = document.getElementById("tooltip"), startDate = document.getElementById("startDate"), endDate = document.getElementById("endDate"), applyDates = document.getElementById("applyDates"), dateStatus = document.getElementById("dateStatus");
         [...new Set(records.map(d => d.metadata))].forEach(v => { const o = document.createElement("option"); o.value = v; o.textContent = v; metadata.appendChild(o) });
-        startDate.min = endDate.min = minAvailableDate; startDate.max = endDate.max = maxAvailableDate; startDate.value = selectedStartDate; endDate.value = selectedEndDate; dateStatus.textContent = `当前范围：${inclusiveDays(selectedStartDate, selectedEndDate)}天`;
+        startDate.min = endDate.min = minAvailableDate; startDate.max = endDate.max = maxAvailableDate; startDate.value = selectedStartDate; endDate.value = selectedEndDate; dateStatus.textContent = "未查询时间，当前只显示上下限标准";
         const displaySpeed = v => Number(v).toFixed(2);
         function fillSelect(select, values, format = v => v) { const previous = select.value; select.innerHTML = '<option value="全部">全部</option>'; values.forEach(v => { const o = document.createElement("option"); o.value = String(v); o.textContent = format(v); select.appendChild(o) }); if ([...select.options].some(o => o.value === previous)) select.value = previous }
         function fillSpecSelect(base) { const previous = spec.value; spec.innerHTML = '<option value="全部">全部钢种规格（' + base.length + ' 条）</option>'; const steels = [...new Set(base.map(d => d.steel))].sort((a, b) => a.localeCompare(b, "zh-CN")); steels.forEach(steel => { const rows = base.filter(d => d.steel === steel), group = document.createElement("optgroup"); group.label = steel; const all = document.createElement("option"); all.value = "steel:" + steel; all.textContent = steel + "规格的全部宽度（" + rows.length + " 条）"; group.appendChild(all);[...new Set(rows.map(d => d.yLabel))].sort((a, b) => a.localeCompare(b, "zh-CN")).forEach(label => { const option = document.createElement("option"), count = rows.filter(d => d.yLabel === label).length; option.value = "spec:" + label; option.textContent = label + "（" + count + " 条）"; group.appendChild(option) }); spec.appendChild(group) }); if ([...spec.options].some(o => o.value === previous)) spec.value = previous }
@@ -635,9 +631,8 @@
         detail.addEventListener("click", e => { if (e.target.closest("[data-drill]") && selectedRowData) openDrilldown(selectedRowData) });
         window.addEventListener("keydown", e => { if (e.key === "Escape") closeDrilldown() });
         function resetCameraView() { camera.position.set(31, 18, 29); controls.target.set(0, 5.2, 0); controls.update(); render() } function setBoundsOnly(active) { boundsOnlyActive = active; if (actualNormal) actualNormal.visible = !active; if (actualAbnormal) actualAbnormal.visible = !active; actualPointLayers.forEach(layer => { layer.visible = !active }); boundsOnlyReset.textContent = active ? "恢复时间对比" : "复位只看上下限"; clearSelection(); render() } function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); render(); if (drilldown.classList.contains("open")) renderDrillChart() } function render() { renderer.render(scene, camera) } function animate() { requestAnimationFrame(animate); if (controls.update()) render() } controls.addEventListener("change", render); window.addEventListener("resize", resize);
-        function applyDateSelection() { const start = startDate.value, end = endDate.value, days = inclusiveDays(start, end); if (!start || !end || end < start) { dateStatus.textContent = "结束日期不能早于开始日期"; dateStatus.classList.add("error"); return } if (days < 7 || days > 365) { dateStatus.textContent = `请选择7～365天，当前${days}天`; dateStatus.classList.add("error"); return } selectedStartDate = start; selectedEndDate = end; actualByKey = aggregateActual(start, end); dateStatus.textContent = `当前范围：${days}天`; dateStatus.classList.remove("error"); closeDrilldown(); clearSelection(); refreshFilterOptions(); build() }
-        function setViewMode(mode) { boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限"; viewMode = mode; document.getElementById("standardMode").classList.toggle("active", mode === "standard"); document.getElementById("compareMode").classList.toggle("active", mode === "compare"); document.querySelectorAll(".time-only, .compare-only").forEach(element => { element.style.display = mode === "compare" ? "" : "none" }); closeDrilldown(); spec.value = "全部"; clearSelection(); refreshFilterOptions(); build() }
-        document.getElementById("standardMode").onclick = () => setViewMode("standard"); document.getElementById("compareMode").onclick = () => setViewMode("compare"); boundsOnlyReset.onclick = () => setBoundsOnly(!boundsOnlyActive); applyDates.onclick = applyDateSelection; metadata.onchange = () => { closeDrilldown(); refreshFilterOptions(); build() }; spec.onchange = () => { closeDrilldown(); build() }; resetFilters.onclick = () => { closeDrilldown(); spec.value = "全部"; clearSelection(); build() }; refreshFilterOptions(); resize(); build(); animate();
+        function applyDateSelection() { const start = startDate.value, end = endDate.value, days = inclusiveDays(start, end); if (!start || !end || end < start) { dateStatus.textContent = "结束日期不能早于开始日期"; dateStatus.classList.add("error"); return } if (days < 7 || days > 365) { dateStatus.textContent = `请选择7～365天，当前${days}天`; dateStatus.classList.add("error"); return } selectedStartDate = start; selectedEndDate = end; actualByKey = aggregateActual(start, end); viewMode = "compare"; boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限"; boundsOnlyReset.style.display = ""; dateStatus.textContent = `已查询：${start} 至 ${end}（${days}天）`; dateStatus.classList.remove("error"); closeDrilldown(); spec.value = "全部"; clearSelection(); refreshFilterOptions(); build() }
+        boundsOnlyReset.onclick = () => setBoundsOnly(!boundsOnlyActive); applyDates.onclick = applyDateSelection; metadata.onchange = () => { closeDrilldown(); spec.value = "全部"; refreshFilterOptions(); build() }; spec.onchange = () => { closeDrilldown(); build() }; resetFilters.onclick = () => { closeDrilldown(); viewMode = "standard"; boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限"; boundsOnlyReset.style.display = "none"; dateStatus.textContent = "未查询时间，当前只显示上下限标准"; dateStatus.classList.remove("error"); spec.value = "全部"; clearSelection(); refreshFilterOptions(); build() }; refreshFilterOptions(); resize(); build(); animate();
     </script>
 </body>
 
