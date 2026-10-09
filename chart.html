@@ -518,7 +518,7 @@
         let metadataCatalog = [];
         let availableDates = [];
         let minAvailableDate = "", maxAvailableDate = "";
-        const API_BASE = "http://127.0.0.1:8765/api";
+        const API_BASE = `${window.location.origin}/api`;
         const conditionKey = (code, steel, width, speed) => [code, steel, Number(width), Number(speed).toFixed(2)].join("|");
         const inclusiveDays = (start, end) => Math.round((Date.parse(end + "T00:00:00Z") - Date.parse(start + "T00:00:00Z")) / 86400000) + 1;
         function aggregateActual(start, end) {
@@ -545,10 +545,24 @@
         const displaySpeed = v => Number(v).toFixed(2);
         function fillSelect(select, values, format = v => v) { const previous = select.value; select.innerHTML = '<option value="全部">全部</option>'; values.forEach(v => { const o = document.createElement("option"); o.value = String(v); o.textContent = format(v); select.appendChild(o) }); if ([...select.options].some(o => o.value === previous)) select.value = previous }
         function fillSpecSelect(base) { const previous = spec.value; spec.innerHTML = '<option value="全部">全部钢种规格（' + base.length + ' 条）</option>'; const steels = [...new Set(base.map(d => d.steel))].sort((a, b) => a.localeCompare(b, "zh-CN")); steels.forEach(steel => { const rows = base.filter(d => d.steel === steel), group = document.createElement("optgroup"); group.label = steel; const all = document.createElement("option"); all.value = "steel:" + steel; all.textContent = steel + "规格的全部宽度（" + rows.length + " 条）"; group.appendChild(all);[...new Set(rows.map(d => d.yLabel))].sort((a, b) => a.localeCompare(b, "zh-CN")).forEach(label => { const option = document.createElement("option"), count = rows.filter(d => d.yLabel === label).length; option.value = "spec:" + label; option.textContent = label + "（" + count + " 条）"; group.appendChild(option) }); spec.appendChild(group) }); if ([...spec.options].some(o => o.value === previous)) spec.value = previous }
+        function visibleStandardRows() { return viewMode === "compare" ? records.filter(d => actualFor(d)) : records }
         function refreshFilterOptions() { fillSpecSelect(records) }
         function matchesSpec(d) { return spec.value === "全部" || spec.value === "steel:" + d.steel || spec.value === "spec:" + d.yLabel }
         function standardFiltered() { return records.filter(matchesSpec) }
-        function filtered() { return records.filter(matchesSpec) }
+        function filtered() { return visibleStandardRows().filter(matchesSpec) }
+        function updateDateStatusForSpec() {
+            if (viewMode !== "compare") return;
+            const days = inclusiveDays(selectedStartDate, selectedEndDate);
+            const hasActual = records.some(d => matchesSpec(d) && actualFor(d));
+            if (spec.value !== "全部" && !hasActual) {
+                const label = spec.selectedOptions[0]?.textContent || "所选钢种规格";
+                dateStatus.textContent = `所选时间段内，“${label}”没有实际生产数据`;
+                dateStatus.classList.add("error");
+            } else {
+                dateStatus.textContent = `已查询：${selectedStartDate} 至 ${selectedEndDate}（${days}天）`;
+                dateStatus.classList.remove("error");
+            }
+        }
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" }); renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio, 2), 3)); renderer.setClearColor(0xf5f7fb, 0);
         const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(38, 1, .1, 200); camera.position.set(31, 18, 29);
         const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = .08; controls.screenSpacePanning = true; controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }; controls.target.set(0, 5.2, 0);
@@ -560,10 +574,125 @@
         function sprite(text, color = "#64748b", size = 30, weight = 550) { const dpr = 4, c = document.createElement("canvas"), ctx = c.getContext("2d"), font = `${weight} ${size}px "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif`; ctx.font = font; const logicalW = Math.ceil(ctx.measureText(text).width) + 18, logicalH = size + 16; c.width = logicalW * dpr; c.height = logicalH * dpr; ctx.scale(dpr, dpr); ctx.font = font; ctx.fillStyle = color; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, logicalW / 2, logicalH / 2); const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.encoding = THREE.sRGBEncoding; const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }); const s = new THREE.Sprite(mat); s.scale.set(logicalW / size * 1.02, 1.02, 1); return s }
         function addLabel(group, text, pos, scale = .7, color = "#64748b", weight = 500) { const isZeroTick = text === "0" && color === "#0f172a", labelColor = isZeroTick ? "#e11d48" : color, labelPos = isZeroTick ? new THREE.Vector3(xMin, -.62, 12) : pos, s = sprite(text, labelColor, 28, weight); s.position.copy(labelPos); s.scale.multiplyScalar(scale); group.add(s); return s }
         function buildAxes(rows) { gridGroup = new THREE.Group(); labelGroup = new THREE.Group(); root.add(gridGroup, labelGroup); const gridMat = new THREE.LineBasicMaterial({ color: 0xd7dee8, transparent: true, opacity: .56 }), axisMat = new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: .9 }), pts = [], axisYMin = Math.min(0, zPosition(bounds.zmin)), axisYMax = Math.max(0, zPosition(bounds.zmax)); for (let i = 0; i <= 5; i++) { const x = xMin + i * (xMax - xMin) / 5; pts.push(x, 0, -12, x, 0, 12); const z = -12 + i * 4.8; pts.push(xMin, 0, z, xMax, 0, z) } for (let i = 1; i <= 5; i++) { const y = axisYMin + i * (axisYMax - axisYMin) / 5; if (Math.abs(y) < 1e-9) continue; pts.push(xMin, y, -12, xMax, y, -12, xMin, y, -12, xMin, y, 12) } const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); gridGroup.add(new THREE.LineSegments(g, gridMat)); const ag = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12), new THREE.Vector3(xMax + 1, 0, 12), new THREE.Vector3(xMin, 0, -12), new THREE.Vector3(xMin, 0, 13), new THREE.Vector3(xMin, axisYMin, 12), new THREE.Vector3(xMin, axisYMax, 12)]); gridGroup.add(new THREE.LineSegments(ag, axisMat)); const originCanvas = document.createElement("canvas"); originCanvas.width = 64; originCanvas.height = 64; const originContext = originCanvas.getContext("2d"); originContext.fillStyle = "#111827"; originContext.beginPath(); originContext.arc(32, 32, 30, 0, Math.PI * 2); originContext.fill(); const originTexture = new THREE.CanvasTexture(originCanvas), originGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12)]), originPoint = new THREE.Points(originGeometry, new THREE.PointsMaterial({ color: 0xffffff, map: originTexture, alphaTest: .5, transparent: true, size: 7, sizeAttenuation: false, depthTest: false, depthWrite: false })); originPoint.renderOrder = 20; gridGroup.add(originPoint); addLabel(labelGroup, "X：拉速", new THREE.Vector3(xMax + 1.6, -.75, 12.2), .52, "#1e293b", 650); addLabel(labelGroup, "Y：钢种＋宽度", new THREE.Vector3(xMin, -1.45, -13.5), .5, "#1e293b", 650); addLabel(labelGroup, "Z：上下限值", new THREE.Vector3(xMin - .7, axisYMax + 1.5, 12.2), .5, "#1e293b", 650); const actualSpeeds = [...new Set(rows.map(d => d.speed))].sort((a, b) => a - b), minorMin = Math.ceil(xDataMin * 100) / 100, minorMax = Math.floor(bounds.xmax * 100) / 100, minorSpeeds = Array.from({ length: Math.round((minorMax - minorMin) * 100) + 1 }, (_, i) => Number((minorMin + i / 100).toFixed(2))), labelMin = Math.ceil(xDataMin * 20) / 20, labelMax = Math.floor(bounds.xmax * 20) / 20, labelSpeeds = Array.from({ length: Math.round((labelMax - labelMin) * 20) + 1 }, (_, i) => Number((labelMin + i / 20).toFixed(2))), speedTickPts = [xMin, 0, 12, xMin, 0, 12.3]; const breakX = xMin + 1.1; speedTickPts.push(breakX - .18, -.06, 11.82, breakX + .02, .18, 12.18, breakX + .12, -.06, 11.82, breakX + .32, .18, 12.18); minorSpeeds.forEach(v => { const x = xPosition(v); speedTickPts.push(x, 0, 12, x, 0, 12.13) }); labelSpeeds.forEach(v => { const x = xPosition(v); if (Math.abs(v) > 1e-9) { const tick = addLabel(labelGroup, displaySpeed(v), new THREE.Vector3(x, -1.02, 12.65), .55, "#475569", 600); tick.material.rotation = Math.PI / 2 } speedTickPts.push(x, 0, 12, x, 0, 12.3) }); const speedTickGeo = new THREE.BufferGeometry(); speedTickGeo.setAttribute("position", new THREE.Float32BufferAttribute(speedTickPts, 3)); gridGroup.add(new THREE.LineSegments(speedTickGeo, new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: .65 }))); const zRange = bounds.zmax - bounds.zmin, zTicks = []; for (let i = 0; i < 5; i++) { const t = i / 4, v = bounds.zmin + t * zRange; zTicks.push({ v, y: zPosition(v), zero: false }) } if (bounds.zmin <= 0 && bounds.zmax >= 0) { const zeroIdx = zTicks.findIndex(t => Math.abs(t.v) <= zRange * .04); if (zeroIdx >= 0) { zTicks[zeroIdx].v = 0; zTicks[zeroIdx].zero = true } else { zTicks.push({ v: 0, y: 0, zero: true }) } } zTicks.forEach(t => { addLabel(labelGroup, t.zero ? "0" : Number(t.v.toPrecision(4)).toString(), new THREE.Vector3(t.zero ? xMin : xMin - .72, t.y, t.zero ? 12 : 12.35), t.zero ? .62 : .58, t.zero ? "#0f172a" : "#475569", t.zero ? 700 : 600) }); const ys = [...new Set(rows.map(d => d.y))].sort((a, b) => a - b), count = Math.min(6, ys.length), chosen = []; for (let i = 0; i < count; i++) { const idx = count === 1 ? 0 : Math.round(i * (ys.length - 1) / (count - 1)); if (!chosen.includes(ys[idx])) chosen.push(ys[idx]) } chosen.forEach(v => { const d = rows.find(r => r.y === v), z = yPosition(v); addLabel(labelGroup, d.yLabel.replace("｜", " · "), new THREE.Vector3(xMin - .62, -.68, z), .52, "#475569", 600) }) } function build() { document.getElementById("loading").style.display = "flex"; disposeObject(root); actualPointLayers = []; currentRows = filtered(); const axisRows = standardFiltered(); const positiveSpeeds = axisRows.map(d => Number(d.speed)).filter(v => v > 0); xDataMin = positiveSpeeds.length ? Math.min(...positiveSpeeds) : 0; xDataMax = Math.max(...axisRows.map(d => Number(d.speed))); ySlots = [...new Set(axisRows.map(d => d.y))].sort((a, b) => a - b); updateStats(); detail.style.display = "none"; if (!currentRows.length || !axisRows.length) { document.getElementById("loading").textContent = "没有符合条件的数据"; return } bounds = { xmin: Math.min(0, ...axisRows.map(d => d.speed)), xmax: Math.max(...axisRows.map(d => d.speed)), ymin: Math.min(...axisRows.map(d => d.y)), ymax: Math.max(...axisRows.map(d => d.y)), zmin: Math.min(0, ...axisRows.map(d => d.lower)), zmax: Math.max(...axisRows.map(d => d.upper)) }; if (bounds.zmin === bounds.zmax) bounds.zmax = bounds.zmin + 1; const linePos = [], lowPos = [], upPos = []; currentRows.forEach(d => { const x = xPosition(d.speed), z = yPosition(d.y), lo = zPosition(d.lower), hi = zPosition(d.upper); linePos.push(x, lo, z, x, hi, z); lowPos.push(x, lo, z); upPos.push(x, hi, z) }); const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePos, 3)); segments = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: blue, transparent: true, opacity: 1 })); segments.userData.kind = "line"; root.add(segments); const lowGeo = new THREE.BufferGeometry(); lowGeo.setAttribute("position", new THREE.Float32BufferAttribute(lowPos, 3)); lowerPoints = new THREE.Points(lowGeo, new THREE.PointsMaterial({ color: blue, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); lowerPoints.userData.kind = "lower"; root.add(lowerPoints); const upGeo = new THREE.BufferGeometry(); upGeo.setAttribute("position", new THREE.Float32BufferAttribute(upPos, 3)); upperPoints = new THREE.Points(upGeo, new THREE.PointsMaterial({ color: red, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); upperPoints.userData.kind = "upper"; root.add(upperPoints); const normalPos = [], abnormalPos = [], normalRows = [], abnormalRows = []; if (viewMode === "compare") currentRows.forEach(d => { const a = actualFor(d); if (!a) return; const x = xPosition(d.speed), z = yPosition(d.y), abnormal = isAbnormal(d, a), target = abnormal ? abnormalPos : normalPos, targetRows = abnormal ? abnormalRows : normalRows; target.push(x, zPosition(a.lower), z, x, zPosition(a.upper), z); targetRows.push(d) }); function addActualLayer(positions, rows, color, kind) { if (!positions.length) return null; const geometry = new THREE.BufferGeometry(); geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const layer = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 })); layer.userData = { kind, rows }; root.add(layer); const pointGeometry = new THREE.BufferGeometry(); pointGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const pointLayer = new THREE.Points(pointGeometry, new THREE.PointsMaterial({ color, size: 4, sizeAttenuation: false })); pointLayer.visible = !boundsOnlyActive; actualPointLayers.push(pointLayer); root.add(pointLayer); layer.visible = !boundsOnlyActive; return layer } actualNormal = addActualLayer(normalPos, normalRows, 0x16a34a, "actualNormal"); actualAbnormal = addActualLayer(abnormalPos, abnormalRows, 0xdc2626, "actualAbnormal"); const hg = new THREE.BufferGeometry(); hg.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); highlightLine = new THREE.LineSegments(hg, new THREE.LineBasicMaterial({ color: orange, linewidth: 3, transparent: true, opacity: 0 })); root.add(highlightLine); const hp = new THREE.BufferGeometry(); hp.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); hp.setAttribute("color", new THREE.Float32BufferAttribute([blue.r, blue.g, blue.b, red.r, red.g, red.b], 3)); const dotCanvas = document.createElement("canvas"); dotCanvas.width = 64; dotCanvas.height = 64; const dotContext = dotCanvas.getContext("2d"); dotContext.fillStyle = "#ffffff"; dotContext.beginPath(); dotContext.arc(32, 32, 30, 0, Math.PI * 2); dotContext.fill(); const dotTexture = new THREE.CanvasTexture(dotCanvas); highlightPoints = new THREE.Points(hp, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, map: dotTexture, alphaTest: .1, depthWrite: false, transparent: true, opacity: 0 })); root.add(highlightPoints); buildAxes(axisRows); document.getElementById("loading").style.display = "none"; render() }
-        function updateStats() { document.getElementById("title").textContent = (metadata.selectedOptions[0]?.textContent || "元数据") + "上下限"; if (viewMode === "standard") resultCount.textContent = `上下限标准：${currentRows.length.toLocaleString()} 条`; else { const abnormal = currentRows.filter(d => isAbnormal(d, actualFor(d))); resultCount.textContent = `对比组合：${currentRows.length.toLocaleString()} 条｜异常：${abnormal.length.toLocaleString()} 条` } } function selectRow(i, source = "gold") { const d = currentRows[i]; if (!d) return; selectedRowData = d; segments.material.opacity = .18; lowerPoints.material.opacity = .22; upperPoints.material.opacity = .22; if (actualNormal) actualNormal.material.opacity = .2; if (actualAbnormal) actualAbnormal.material.opacity = .2; const selectedColor = source === "actualAbnormal" ? 0xdc2626 : source === "actualNormal" ? 0x16a34a : 0x2563eb; highlightLine.material.color.setHex(selectedColor); const selectedRgb = new THREE.Color(selectedColor); highlightPoints.geometry.attributes.color.array.set([selectedRgb.r, selectedRgb.g, selectedRgb.b, selectedRgb.r, selectedRgb.g, selectedRgb.b]); highlightPoints.geometry.attributes.color.needsUpdate = true; const x = xPosition(d.speed), z = yPosition(d.y), lo = zPosition(d.lower), hi = zPosition(d.upper), arr = [x, lo, z, x, hi, z], sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; highlightLine.geometry.attributes.position.array.set(arr); highlightLine.geometry.attributes.position.needsUpdate = true; highlightLine.material.opacity = 1; highlightPoints.geometry.attributes.position.array.set(arr); highlightPoints.geometry.attributes.position.needsUpdate = true; highlightPoints.material.opacity = 1; detail.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}${viewMode === "compare" ? `<br><button type="button" class="drill-btn" data-drill="1">每日上下限时间对比（二维图）→</button>` : ""}`; detail.style.display = "block"; render() }
+        function updateStats() { document.getElementById("title").textContent = (metadata.selectedOptions[0]?.textContent || "元数据") + "上下限"; if (viewMode === "standard") resultCount.textContent = `上下限标准：${currentRows.length.toLocaleString()} 条`; else { const abnormal = currentRows.filter(d => isAbnormal(d, actualFor(d))); resultCount.textContent = `对比组合：${currentRows.length.toLocaleString()} 条｜异常：${abnormal.length.toLocaleString()} 条` } } function selectRow(i, source = "gold") { const d = currentRows[i]; if (!d) return; selectedRowData = d; segments.material.opacity = .18; lowerPoints.material.opacity = .22; upperPoints.material.opacity = .22; if (actualNormal) actualNormal.material.opacity = .2; if (actualAbnormal) actualAbnormal.material.opacity = .2; const selectedColor = source === "actualAbnormal" ? 0xdc2626 : source === "actualNormal" ? 0x16a34a : 0x2563eb; highlightLine.material.color.setHex(selectedColor); const selectedRgb = new THREE.Color(selectedColor); highlightPoints.geometry.attributes.color.array.set([selectedRgb.r, selectedRgb.g, selectedRgb.b, selectedRgb.r, selectedRgb.g, selectedRgb.b]); highlightPoints.geometry.attributes.color.needsUpdate = true; const x = xPosition(d.speed), z = yPosition(d.y), lo = zPosition(d.lower), hi = zPosition(d.upper), arr = [x, lo, z, x, hi, z], sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; highlightLine.geometry.attributes.position.array.set(arr); highlightLine.geometry.attributes.position.needsUpdate = true; highlightLine.material.opacity = 1; highlightPoints.geometry.attributes.position.array.set(arr); highlightPoints.geometry.attributes.position.needsUpdate = true; highlightPoints.material.opacity = 1; detail.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}<br><button type="button" class="drill-btn" data-drill="1">每日上下限时间对比（二维图）→</button>`; detail.style.display = "block"; render() }
+        function selectRow(i, source = "gold") {
+            const d = currentRows[i];
+            if (!d) return;
+            selectedRowData = d;
+            segments.material.opacity = .12;
+            lowerPoints.material.opacity = .14;
+            upperPoints.material.opacity = .14;
+            if (actualNormal) actualNormal.material.opacity = .12;
+            if (actualAbnormal) actualAbnormal.material.opacity = .12;
+
+            const actual = source.startsWith("actual") ? actualFor(d) : null;
+            const selectedRange = actual || { lower: d.lower, upper: d.upper };
+            const selectedColor = source === "actualAbnormal" ? 0xdc2626 : source === "actualNormal" ? 0x16a34a : 0x2563eb;
+            const selectedRgb = new THREE.Color(selectedColor);
+            highlightLine.material.color.setHex(selectedColor);
+            highlightPoints.geometry.attributes.color.array.set([
+                selectedRgb.r, selectedRgb.g, selectedRgb.b,
+                selectedRgb.r, selectedRgb.g, selectedRgb.b,
+            ]);
+            highlightPoints.geometry.attributes.color.needsUpdate = true;
+
+            const x = xPosition(d.speed), z = yPosition(d.y);
+            const lo = zPosition(selectedRange.lower), hi = zPosition(selectedRange.upper);
+            const positions = [x, lo, z, x, hi, z];
+            highlightLine.geometry.attributes.position.array.set(positions);
+            highlightLine.geometry.attributes.position.needsUpdate = true;
+            highlightLine.material.opacity = 1;
+            highlightPoints.geometry.attributes.position.array.set(positions);
+            highlightPoints.geometry.attributes.position.needsUpdate = true;
+            highlightPoints.material.opacity = 1;
+
+            const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`;
+            detail.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}<br><button type="button" class="drill-btn" data-drill="1">每日上下限时间对比（二维图）→</button>`;
+            detail.style.display = "block";
+            render();
+        }
         function clearSelection() { selectedRowData = null; if (!segments) return; segments.material.opacity = 1; lowerPoints.material.opacity = 1; upperPoints.material.opacity = 1; if (actualNormal) actualNormal.material.opacity = 1; if (actualAbnormal) actualAbnormal.material.opacity = 1; highlightLine.material.opacity = 0; highlightPoints.material.opacity = 0; detail.style.display = "none"; render() }
+        let selectedActualLine = null, selectedActualPoints = null;
+        function ensureSelectedActualOverlay() {
+            if (selectedActualLine?.parent === root && selectedActualPoints?.parent === root) return;
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+            selectedActualLine = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0x16a34a, transparent: true, opacity: 0 }));
+            const pointGeometry = new THREE.BufferGeometry();
+            pointGeometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+            selectedActualPoints = new THREE.Points(pointGeometry, new THREE.PointsMaterial({ color: 0x16a34a, size: 5, sizeAttenuation: false, transparent: true, opacity: 0 }));
+            root.add(selectedActualLine, selectedActualPoints);
+        }
+        function selectRow(i) {
+            const d = currentRows[i];
+            if (!d) return;
+            selectedRowData = d;
+
+            segments.material.opacity = .14;
+            lowerPoints.material.opacity = .18;
+            upperPoints.material.opacity = .18;
+            if (actualNormal) actualNormal.material.opacity = .14;
+            if (actualAbnormal) actualAbnormal.material.opacity = .14;
+            actualPointLayers.forEach(layer => { layer.material.transparent = true; layer.material.opacity = .18 });
+
+            const actual = viewMode === "compare" ? actualFor(d) : null;
+            const x = xPosition(d.speed), z = yPosition(d.y);
+            const standardPositions = [x, zPosition(d.lower), z, x, zPosition(d.upper), z];
+            highlightLine.material.color.setHex(0x2563eb);
+            highlightLine.geometry.attributes.position.array.set(standardPositions);
+            highlightLine.geometry.attributes.position.needsUpdate = true;
+            highlightLine.material.opacity = 1;
+            const standardRgb = new THREE.Color(0x2563eb);
+            highlightPoints.geometry.attributes.color.array.set([
+                standardRgb.r, standardRgb.g, standardRgb.b,
+                standardRgb.r, standardRgb.g, standardRgb.b,
+            ]);
+            highlightPoints.geometry.attributes.color.needsUpdate = true;
+            highlightPoints.geometry.attributes.position.array.set(standardPositions);
+            highlightPoints.geometry.attributes.position.needsUpdate = true;
+            highlightPoints.material.opacity = 1;
+
+            ensureSelectedActualOverlay();
+            if (actual) {
+                const actualColor = isAbnormal(d, actual) ? 0xdc2626 : 0x16a34a;
+                const actualPositions = [x, zPosition(actual.lower), z, x, zPosition(actual.upper), z];
+                selectedActualLine.material.color.setHex(actualColor);
+                selectedActualPoints.material.color.setHex(actualColor);
+                selectedActualLine.geometry.attributes.position.array.set(actualPositions);
+                selectedActualLine.geometry.attributes.position.needsUpdate = true;
+                selectedActualPoints.geometry.attributes.position.array.set(actualPositions);
+                selectedActualPoints.geometry.attributes.position.needsUpdate = true;
+                selectedActualLine.material.opacity = 1;
+                selectedActualPoints.material.opacity = 1;
+            } else {
+                selectedActualLine.material.opacity = 0;
+                selectedActualPoints.material.opacity = 0;
+            }
+
+            const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`;
+            detail.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}<br><button type="button" class="drill-btn" data-drill="1">每日上下限时间对比（二维图）→</button>`;
+            detail.style.display = "block";
+            render();
+        }
+        function clearSelection() {
+            selectedRowData = null;
+            if (!segments) return;
+            segments.material.opacity = 1;
+            lowerPoints.material.opacity = 1;
+            upperPoints.material.opacity = 1;
+            if (actualNormal) actualNormal.material.opacity = 1;
+            if (actualAbnormal) actualAbnormal.material.opacity = 1;
+            actualPointLayers.forEach(layer => { layer.material.opacity = 1 });
+            highlightLine.material.opacity = 0;
+            highlightPoints.material.opacity = 0;
+            if (selectedActualLine) selectedActualLine.material.opacity = 0;
+            if (selectedActualPoints) selectedActualPoints.material.opacity = 0;
+            detail.style.display = "none";
+            render();
+        }
         function rowAt(e) { const r = canvas.getBoundingClientRect(); pointer.x = (e.clientX - r.left) / r.width * 2 - 1; pointer.y = -(e.clientY - r.top) / r.height * 2 + 1; raycaster.setFromCamera(pointer, camera); const targets = [actualAbnormal, actualNormal, lowerPoints, upperPoints, segments].filter(Boolean), hits = raycaster.intersectObjects(targets, false); if (!hits.length) return null; const h = hits[0], kind = h.object.userData.kind, i = (kind === "line" || kind === "actualNormal" || kind === "actualAbnormal") ? Math.floor(h.index / 2) : h.index, d = kind.startsWith("actual") ? h.object.userData.rows[i] : currentRows[i]; return d ? { d, source: kind.startsWith("actual") ? kind : "gold" } : null } function pick(e) { const hit = rowAt(e); if (hit) selectRow(currentRows.indexOf(hit.d), hit.source) } function showTip(e, d) { if (!d) { tooltip.style.display = "none"; return } const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; tooltip.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}`; const r = view.getBoundingClientRect(), maxX = r.width - 310, maxY = r.height - 90; tooltip.style.left = Math.max(0, Math.min(maxX, e.clientX - r.left)) + "px"; tooltip.style.top = Math.max(0, Math.min(maxY, e.clientY - r.top)) + "px"; tooltip.style.display = "block" }
         let hoverFrame = 0; canvas.addEventListener("pointerdown", e => { tooltip.style.display = "none"; downAt = { x: e.clientX, y: e.clientY, t: performance.now() } }); canvas.addEventListener("pointerup", e => { if (!downAt) return; const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y); if (moved < 5 && performance.now() - downAt.t < 450) pick(e); downAt = null }); canvas.addEventListener("pointermove", e => { if (downAt || hoverFrame) return; const x = e.clientX, y = e.clientY; hoverFrame = requestAnimationFrame(() => { hoverFrame = 0; (() => { const hit = rowAt({ clientX: x, clientY: y }); showTip({ clientX: x, clientY: y }, hit ? hit.d : null) })() }) }); canvas.addEventListener("pointerleave", () => { tooltip.style.display = "none" }); canvas.addEventListener("dblclick", e => { e.preventDefault(); tooltip.style.display = "none"; clearSelection() });
+        canvas.addEventListener("click", e => { if (!rowAt(e)) { tooltip.style.display = "none"; clearSelection() } });
         const drilldown = document.getElementById("drilldown"), drillTitle = document.getElementById("drillTitle"), drillScene = document.getElementById("drillScene"), drillSummary = document.getElementById("drillSummary"), drillWrap = document.getElementById("drillWrap"), drillSvg = document.getElementById("drillSvg"), drillTip = document.getElementById("drillTip"), drillTable = document.getElementById("drillTable"), drillTableBtn = document.getElementById("drillTableBtn"), drillClose = document.getElementById("drillClose");
         let selectedRowData = null, drillDays = [], drillGeom = null;
         const drillBad = (x, d) => x.l < d.lower || x.u > d.upper, fmtVal = v => Number(v.toPrecision(6)).toString();
@@ -633,7 +762,23 @@
         drillSvg.addEventListener("pointerleave", () => { drillTip.style.display = "none"; const c = document.getElementById("drillCross"), f = document.getElementById("drillFocus"); if (c) c.setAttribute("opacity", "0"); if (f) { f.setAttribute("opacity", "0"); f.innerHTML = "" } });
         drillClose.onclick = closeDrilldown;
         drillTableBtn.onclick = () => { const show = drillTable.classList.toggle("show"); drillTableBtn.textContent = show ? "隐藏数据表" : "显示数据表" };
-        detail.addEventListener("click", e => { if (e.target.closest("[data-drill]") && selectedRowData) openDrilldown(selectedRowData) });
+        async function openSelectedDrilldown() {
+            if (!selectedRowData) return;
+            const start = startDate.value, end = endDate.value, days = inclusiveDays(start, end);
+            if (!start || !end || end < start) { dateStatus.textContent = "结束日期不能早于开始日期"; dateStatus.classList.add("error"); return }
+            if (days < 7 || days > 365) { dateStatus.textContent = `请选择7～365天，当前${days}天`; dateStatus.classList.add("error"); return }
+            const selected = selectedRowData;
+            if (selectedStartDate !== start || selectedEndDate !== end || !dailyRecords.length) {
+                dateStatus.textContent = "正在读取逐日上下限…"; dateStatus.classList.remove("error");
+                try {
+                    dailyRecords = await fetchJson(`${API_BASE}/daily?code=${encodeURIComponent(metadata.value)}&start=${start}&end=${end}`);
+                    selectedStartDate = start; selectedEndDate = end;
+                    dateStatus.textContent = `已读取逐日数据：${start} 至 ${end}（${days}天）`;
+                } catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error"); return }
+            }
+            openDrilldown(selected);
+        }
+        detail.addEventListener("click", e => { if (e.target.closest("[data-drill]")) openSelectedDrilldown() });
         window.addEventListener("keydown", e => { if (e.key === "Escape") closeDrilldown() });
         function resetCameraView() { camera.position.set(31, 18, 29); controls.target.set(0, 5.2, 0); controls.update(); render() } function setBoundsOnly(active) { boundsOnlyActive = active; if (actualNormal) actualNormal.visible = !active; if (actualAbnormal) actualAbnormal.visible = !active; actualPointLayers.forEach(layer => { layer.visible = !active }); boundsOnlyReset.textContent = active ? "恢复时间对比" : "复位只看上下限"; clearSelection(); render() } function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); render(); if (drilldown.classList.contains("open")) renderDrillChart() } function render() { renderer.render(scene, camera) } function animate() { requestAnimationFrame(animate); if (controls.update()) render() } controls.addEventListener("change", render); window.addEventListener("resize", resize);
         async function fetchJson(url) {
@@ -685,8 +830,8 @@
                 dailyRecords = await fetchJson(`${API_BASE}/daily?code=${encodeURIComponent(metadata.value)}&start=${start}&end=${end}`);
                 selectedStartDate = start; selectedEndDate = end; actualByKey = aggregateActual(start, end);
                 viewMode = "compare"; boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限";
-                boundsOnlyReset.style.display = ""; dateStatus.textContent = `已查询：${start} 至 ${end}（${days}天）`;
-                closeDrilldown(); spec.value = "全部"; clearSelection(); refreshFilterOptions(); build();
+                boundsOnlyReset.style.display = "";
+                closeDrilldown(); clearSelection(); refreshFilterOptions(); updateDateStatusForSpec(); build();
             } catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error") }
             finally { applyDates.disabled = false }
         }
@@ -697,7 +842,7 @@
             try { await loadStandards() }
             catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error"); applyDates.disabled = false }
         };
-        spec.onchange = () => { closeDrilldown(); build() };
+        spec.onchange = () => { closeDrilldown(); updateDateStatusForSpec(); build() };
         resetFilters.onclick = () => {
             closeDrilldown(); viewMode = "standard"; dailyRecords = []; actualByKey = new Map();
             boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限"; boundsOnlyReset.style.display = "none";

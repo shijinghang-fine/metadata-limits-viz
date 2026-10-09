@@ -1,4 +1,6 @@
 from pathlib import Path
+import os
+import socket
 from threading import Thread
 
 import pymysql
@@ -10,8 +12,22 @@ from werkzeug.serving import make_server
 
 ROOT = Path(__file__).resolve().parent
 DB_CONFIG_FILE = Path(r"D:\数据查找方式\history\daily_limits_config.yaml")
-API_HOST = "127.0.0.1"
+API_BIND_HOST = "0.0.0.0"
 API_PORT = 8765
+
+
+def get_lan_host():
+    """Return the address other computers should use for this machine."""
+    configured = os.environ.get("METADATA_WEB_HOST", "").strip()
+    if configured:
+        return configured
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("192.168.50.1", 9))
+            return sock.getsockname()[0]
+    except OSError:
+        return socket.gethostbyname(socket.gethostname())
 
 STEEL_BY_MARK = {
     "1": "超低碳", "2": "低碳", "3": "包晶钢", "4": "中碳",
@@ -170,7 +186,7 @@ def create_api():
 
 @st.cache_resource
 def start_api_server():
-    server = make_server(API_HOST, API_PORT, create_api(), threaded=True)
+    server = make_server(API_BIND_HOST, API_PORT, create_api(), threaded=True)
     Thread(target=server.serve_forever, daemon=True).start()
     return server
 
@@ -185,6 +201,6 @@ st.markdown("""
 
 try:
     start_api_server()
-    st.iframe(f"http://{API_HOST}:{API_PORT}/chart", height=920)
+    st.iframe(f"http://{get_lan_host()}:{API_PORT}/chart", height=920)
 except Exception as error:
     st.error(f"页面启动失败：{error}")
