@@ -190,6 +190,16 @@
             display: block
         }
 
+        .selection-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 6;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none
+        }
+
         .legend {
             position: absolute;
             left: 18px;
@@ -472,10 +482,20 @@
             <button type="button" id="resetFilters" class="reset-button">重置筛选</button>
             <button type="button" id="boundsOnlyReset" class="reset-button compare-only" style="display:none">复位只看上下限</button>
             <span class="mode-badge">浇铸模式</span>
-            <div class="hint">左键旋转 · 右键平移 · 滚轮缩放 · 单击高亮 · 双击取消</div>
+            <div class="hint">左键旋转 · 右键平移 · 滚轮缩放 · 单击高亮 · 重复单击切换重叠线 · 双击取消</div>
         </div>
     </div>
     <div id="view"><canvas id="canvas"></canvas>
+        <svg id="selectionOverlay" class="selection-overlay" aria-hidden="true">
+            <g id="selectionOverlayGroup" style="display:none">
+                <line id="standardOverlayLine" stroke="#2563eb" stroke-width="1" vector-effect="non-scaling-stroke"/>
+                <circle id="standardOverlayLower" r="2" fill="#2563eb"/>
+                <circle id="standardOverlayUpper" r="2" fill="#2563eb"/>
+                <line id="actualOverlayLine" stroke="#dc2626" stroke-width="1" vector-effect="non-scaling-stroke"/>
+                <circle id="actualOverlayLower" r="2" fill="#dc2626"/>
+                <circle id="actualOverlayUpper" r="2" fill="#dc2626"/>
+            </g>
+        </svg>
         <div class="loading" id="loading">正在构建 Three.js 场景…</div>
         <div class="legend">
             <div><span class="sw" style="background:#2563eb"></span>标准上下限范围</div>
@@ -541,7 +561,7 @@
         function comparisonHtml(d) { if (!timeComparisonVisible()) return ""; const actual = actualFor(d); if (!actual) return `<br><b>所选时间无实际数据</b>`; const abnormal = isAbnormal(d, actual); return `<br>实际最小值：${Number(actual.lower).toPrecision(6)}<br>实际最大值：${Number(actual.upper).toPrecision(6)}<br>有效数据量：${actual.count.toLocaleString()}<br><b style="color:${abnormal ? '#dc2626' : '#15803d'}">${abnormal ? '异常：超出上下限标准' : '正常：位于上下限标准内'}</b>` }
         const drillButtonHtml = () => timeComparisonVisible() ? `<br><button type="button" class="drill-btn" data-drill="1">每日上下限时间对比（二维图）→</button>` : "";
 
-        const metadata = document.getElementById("metadata"), spec = document.getElementById("spec"), resultCount = document.getElementById("resultCount"), resetFilters = document.getElementById("resetFilters"), boundsOnlyReset = document.getElementById("boundsOnlyReset"), detail = document.getElementById("detail"), view = document.getElementById("view"), canvas = document.getElementById("canvas"), tooltip = document.getElementById("tooltip"), startDate = document.getElementById("startDate"), endDate = document.getElementById("endDate"), applyDates = document.getElementById("applyDates"), dateStatus = document.getElementById("dateStatus");
+        const metadata = document.getElementById("metadata"), spec = document.getElementById("spec"), resultCount = document.getElementById("resultCount"), resetFilters = document.getElementById("resetFilters"), boundsOnlyReset = document.getElementById("boundsOnlyReset"), detail = document.getElementById("detail"), view = document.getElementById("view"), canvas = document.getElementById("canvas"), tooltip = document.getElementById("tooltip"), startDate = document.getElementById("startDate"), endDate = document.getElementById("endDate"), applyDates = document.getElementById("applyDates"), dateStatus = document.getElementById("dateStatus"), selectionOverlayGroup = document.getElementById("selectionOverlayGroup"), standardOverlayLine = document.getElementById("standardOverlayLine"), standardOverlayLower = document.getElementById("standardOverlayLower"), standardOverlayUpper = document.getElementById("standardOverlayUpper"), actualOverlayLine = document.getElementById("actualOverlayLine"), actualOverlayLower = document.getElementById("actualOverlayLower"), actualOverlayUpper = document.getElementById("actualOverlayUpper");
         metadata.innerHTML = '<option value="">正在读取数据库…</option>';
         dateStatus.textContent = "正在连接数据库…";
         const displaySpeed = v => Number(v).toFixed(2);
@@ -573,6 +593,33 @@
         const blue = new THREE.Color(0x2563eb), red = new THREE.Color(0xe11d48), orange = new THREE.Color(0xf59e0b);
         function disposeObject(o) { o.traverse(n => { if (n.geometry) n.geometry.dispose(); if (n.material) { const a = Array.isArray(n.material) ? n.material : [n.material]; a.forEach(m => { if (m.map) m.map.dispose(); m.dispose() }) } }); o.clear() }
         function map(v, a, b, A, B) { return b === a ? (A + B) / 2 : A + (v - a) * (B - A) / (b - a) } function xPosition(v) { if (Math.abs(v) < 1e-9) return xMin; if (xDataMin > 0 && v >= xDataMin) return map(v, xDataMin, xDataMax, xMin + 2.2, xMax); return map(v, bounds.xmin, bounds.xmax, xMin, xMax) } function yPosition(v) { const index = ySlots.indexOf(v); return index < 0 ? 0 : 12 - (index + 1) * 24 / (ySlots.length + 1) } function zPosition(v) { if (bounds.zmin <= 0 && bounds.zmax >= 0) { const extent = Math.max(Math.abs(bounds.zmin), Math.abs(bounds.zmax), 1e-9); return v / extent * 14 } return map(v, bounds.zmin, bounds.zmax, 0, 14) }
+        let selectionOverlayData = null;
+        function overlayPoint(d, value) {
+            const projected = new THREE.Vector3(xPosition(d.speed), zPosition(value), yPosition(d.y)).project(camera);
+            return { x: (projected.x + 1) * canvas.clientWidth / 2, y: (1 - projected.y) * canvas.clientHeight / 2 };
+        }
+        function positionOverlayRange(line, lowerDot, upperDot, d, range) {
+            const lower = overlayPoint(d, range.lower), upper = overlayPoint(d, range.upper);
+            line.setAttribute("x1", lower.x); line.setAttribute("y1", lower.y);
+            line.setAttribute("x2", upper.x); line.setAttribute("y2", upper.y);
+            lowerDot.setAttribute("cx", lower.x); lowerDot.setAttribute("cy", lower.y);
+            upperDot.setAttribute("cx", upper.x); upperDot.setAttribute("cy", upper.y);
+        }
+        function updateSelectionOverlay() {
+            if (!selectionOverlayData || !bounds) { selectionOverlayGroup.style.display = "none"; return }
+            const { d, actual } = selectionOverlayData;
+            selectionOverlayGroup.style.display = "";
+            positionOverlayRange(standardOverlayLine, standardOverlayLower, standardOverlayUpper, d, { lower: d.lower, upper: d.upper });
+            const showActual = actual && timeComparisonVisible();
+            actualOverlayLine.style.display = actualOverlayLower.style.display = actualOverlayUpper.style.display = showActual ? "" : "none";
+            if (showActual) {
+                const color = isAbnormal(d, actual) ? "#dc2626" : "#16a34a";
+                actualOverlayLine.setAttribute("stroke", color);
+                actualOverlayLower.setAttribute("fill", color);
+                actualOverlayUpper.setAttribute("fill", color);
+                positionOverlayRange(actualOverlayLine, actualOverlayLower, actualOverlayUpper, d, actual);
+            }
+        }
         function sprite(text, color = "#64748b", size = 30, weight = 550) { const dpr = 4, c = document.createElement("canvas"), ctx = c.getContext("2d"), font = `${weight} ${size}px "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif`; ctx.font = font; const logicalW = Math.ceil(ctx.measureText(text).width) + 18, logicalH = size + 16; c.width = logicalW * dpr; c.height = logicalH * dpr; ctx.scale(dpr, dpr); ctx.font = font; ctx.fillStyle = color; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, logicalW / 2, logicalH / 2); const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.encoding = THREE.sRGBEncoding; const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }); const s = new THREE.Sprite(mat); s.scale.set(logicalW / size * 1.02, 1.02, 1); return s }
         function addLabel(group, text, pos, scale = .7, color = "#64748b", weight = 500) { const isZeroTick = text === "0" && color === "#0f172a", labelColor = isZeroTick ? "#e11d48" : color, labelPos = isZeroTick ? new THREE.Vector3(xMin, -.62, 12) : pos, s = sprite(text, labelColor, 28, weight); s.position.copy(labelPos); s.scale.multiplyScalar(scale); group.add(s); return s }
         function buildAxes(rows) { gridGroup = new THREE.Group(); labelGroup = new THREE.Group(); root.add(gridGroup, labelGroup); const gridMat = new THREE.LineBasicMaterial({ color: 0xd7dee8, transparent: true, opacity: .56 }), axisMat = new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: .9 }), pts = [], axisYMin = Math.min(0, zPosition(bounds.zmin)), axisYMax = Math.max(0, zPosition(bounds.zmax)); for (let i = 0; i <= 5; i++) { const x = xMin + i * (xMax - xMin) / 5; pts.push(x, 0, -12, x, 0, 12); const z = -12 + i * 4.8; pts.push(xMin, 0, z, xMax, 0, z) } for (let i = 1; i <= 5; i++) { const y = axisYMin + i * (axisYMax - axisYMin) / 5; if (Math.abs(y) < 1e-9) continue; pts.push(xMin, y, -12, xMax, y, -12, xMin, y, -12, xMin, y, 12) } const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); gridGroup.add(new THREE.LineSegments(g, gridMat)); const ag = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12), new THREE.Vector3(xMax + 1, 0, 12), new THREE.Vector3(xMin, 0, -12), new THREE.Vector3(xMin, 0, 13), new THREE.Vector3(xMin, axisYMin, 12), new THREE.Vector3(xMin, axisYMax, 12)]); gridGroup.add(new THREE.LineSegments(ag, axisMat)); const originCanvas = document.createElement("canvas"); originCanvas.width = 64; originCanvas.height = 64; const originContext = originCanvas.getContext("2d"); originContext.fillStyle = "#111827"; originContext.beginPath(); originContext.arc(32, 32, 30, 0, Math.PI * 2); originContext.fill(); const originTexture = new THREE.CanvasTexture(originCanvas), originGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12)]), originPoint = new THREE.Points(originGeometry, new THREE.PointsMaterial({ color: 0xffffff, map: originTexture, alphaTest: .5, transparent: true, size: 7, sizeAttenuation: false, depthTest: false, depthWrite: false })); originPoint.renderOrder = 20; gridGroup.add(originPoint); addLabel(labelGroup, "X：拉速", new THREE.Vector3(xMax + 1.6, -.75, 12.2), .52, "#1e293b", 650); addLabel(labelGroup, "Y：钢种＋宽度", new THREE.Vector3(xMin, -1.45, -13.5), .5, "#1e293b", 650); addLabel(labelGroup, "Z：上下限值", new THREE.Vector3(xMin - .7, axisYMax + 1.5, 12.2), .5, "#1e293b", 650); const actualSpeeds = [...new Set(rows.map(d => d.speed))].sort((a, b) => a - b), minorMin = Math.ceil(xDataMin * 100) / 100, minorMax = Math.floor(bounds.xmax * 100) / 100, minorSpeeds = Array.from({ length: Math.round((minorMax - minorMin) * 100) + 1 }, (_, i) => Number((minorMin + i / 100).toFixed(2))), labelMin = Math.ceil(xDataMin * 20) / 20, labelMax = Math.floor(bounds.xmax * 20) / 20, labelSpeeds = Array.from({ length: Math.round((labelMax - labelMin) * 20) + 1 }, (_, i) => Number((labelMin + i / 20).toFixed(2))), speedTickPts = [xMin, 0, 12, xMin, 0, 12.3]; const breakX = xMin + 1.1; speedTickPts.push(breakX - .18, -.06, 11.82, breakX + .02, .18, 12.18, breakX + .12, -.06, 11.82, breakX + .32, .18, 12.18); minorSpeeds.forEach(v => { const x = xPosition(v); speedTickPts.push(x, 0, 12, x, 0, 12.13) }); labelSpeeds.forEach(v => { const x = xPosition(v); if (Math.abs(v) > 1e-9) { const tick = addLabel(labelGroup, displaySpeed(v), new THREE.Vector3(x, -1.02, 12.65), .55, "#475569", 600); tick.material.rotation = Math.PI / 2 } speedTickPts.push(x, 0, 12, x, 0, 12.3) }); const speedTickGeo = new THREE.BufferGeometry(); speedTickGeo.setAttribute("position", new THREE.Float32BufferAttribute(speedTickPts, 3)); gridGroup.add(new THREE.LineSegments(speedTickGeo, new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: .65 }))); const zRange = bounds.zmax - bounds.zmin, zTicks = []; for (let i = 0; i < 5; i++) { const t = i / 4, v = bounds.zmin + t * zRange; zTicks.push({ v, y: zPosition(v), zero: false }) } if (bounds.zmin <= 0 && bounds.zmax >= 0) { const zeroIdx = zTicks.findIndex(t => Math.abs(t.v) <= zRange * .04); if (zeroIdx >= 0) { zTicks[zeroIdx].v = 0; zTicks[zeroIdx].zero = true } else { zTicks.push({ v: 0, y: 0, zero: true }) } } zTicks.forEach(t => { addLabel(labelGroup, t.zero ? "0" : Number(t.v.toPrecision(4)).toString(), new THREE.Vector3(t.zero ? xMin : xMin - .72, t.y, t.zero ? 12 : 12.35), t.zero ? .62 : .58, t.zero ? "#0f172a" : "#475569", t.zero ? 700 : 600) }); const ys = [...new Set(rows.map(d => d.y))].sort((a, b) => a - b), count = Math.min(6, ys.length), chosen = []; for (let i = 0; i < count; i++) { const idx = count === 1 ? 0 : Math.round(i * (ys.length - 1) / (count - 1)); if (!chosen.includes(ys[idx])) chosen.push(ys[idx]) } chosen.forEach(v => { const d = rows.find(r => r.y === v), z = yPosition(v); addLabel(labelGroup, d.yLabel.replace("｜", " · "), new THREE.Vector3(xMin - .62, -.68, z), .52, "#475569", 600) }) } function build() { document.getElementById("loading").style.display = "flex"; disposeObject(root); actualPointLayers = []; currentRows = filtered(); const axisRows = standardFiltered(); const positiveSpeeds = axisRows.map(d => Number(d.speed)).filter(v => v > 0); xDataMin = positiveSpeeds.length ? Math.min(...positiveSpeeds) : 0; xDataMax = Math.max(...axisRows.map(d => Number(d.speed))); ySlots = [...new Set(axisRows.map(d => d.y))].sort((a, b) => a - b); updateStats(); detail.style.display = "none"; if (!currentRows.length || !axisRows.length) { document.getElementById("loading").textContent = "没有符合条件的数据"; return } bounds = { xmin: Math.min(0, ...axisRows.map(d => d.speed)), xmax: Math.max(...axisRows.map(d => d.speed)), ymin: Math.min(...axisRows.map(d => d.y)), ymax: Math.max(...axisRows.map(d => d.y)), zmin: Math.min(0, ...axisRows.map(d => d.lower)), zmax: Math.max(...axisRows.map(d => d.upper)) }; if (bounds.zmin === bounds.zmax) bounds.zmax = bounds.zmin + 1; const linePos = [], lowPos = [], upPos = []; currentRows.forEach(d => { const x = xPosition(d.speed), z = yPosition(d.y), lo = zPosition(d.lower), hi = zPosition(d.upper); linePos.push(x, lo, z, x, hi, z); lowPos.push(x, lo, z); upPos.push(x, hi, z) }); const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePos, 3)); segments = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: blue, transparent: true, opacity: 1 })); segments.userData.kind = "line"; root.add(segments); const lowGeo = new THREE.BufferGeometry(); lowGeo.setAttribute("position", new THREE.Float32BufferAttribute(lowPos, 3)); lowerPoints = new THREE.Points(lowGeo, new THREE.PointsMaterial({ color: blue, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); lowerPoints.userData.kind = "lower"; root.add(lowerPoints); const upGeo = new THREE.BufferGeometry(); upGeo.setAttribute("position", new THREE.Float32BufferAttribute(upPos, 3)); upperPoints = new THREE.Points(upGeo, new THREE.PointsMaterial({ color: red, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); upperPoints.userData.kind = "upper"; root.add(upperPoints); const normalPos = [], abnormalPos = [], normalRows = [], abnormalRows = []; if (viewMode === "compare") currentRows.forEach(d => { const a = actualFor(d); if (!a) return; const x = xPosition(d.speed), z = yPosition(d.y), abnormal = isAbnormal(d, a), target = abnormal ? abnormalPos : normalPos, targetRows = abnormal ? abnormalRows : normalRows; target.push(x, zPosition(a.lower), z, x, zPosition(a.upper), z); targetRows.push(d) }); function addActualLayer(positions, rows, color, kind) { if (!positions.length) return null; const geometry = new THREE.BufferGeometry(); geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const layer = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 })); layer.userData = { kind, rows }; root.add(layer); const pointGeometry = new THREE.BufferGeometry(); pointGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const pointLayer = new THREE.Points(pointGeometry, new THREE.PointsMaterial({ color, size: 4, sizeAttenuation: false })); pointLayer.visible = !boundsOnlyActive; actualPointLayers.push(pointLayer); root.add(pointLayer); layer.visible = !boundsOnlyActive; return layer } actualNormal = addActualLayer(normalPos, normalRows, 0x16a34a, "actualNormal"); actualAbnormal = addActualLayer(abnormalPos, abnormalRows, 0xdc2626, "actualAbnormal"); const hg = new THREE.BufferGeometry(); hg.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); highlightLine = new THREE.LineSegments(hg, new THREE.LineBasicMaterial({ color: orange, linewidth: 3, transparent: true, opacity: 0 })); root.add(highlightLine); const hp = new THREE.BufferGeometry(); hp.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); hp.setAttribute("color", new THREE.Float32BufferAttribute([blue.r, blue.g, blue.b, red.r, red.g, red.b], 3)); const dotCanvas = document.createElement("canvas"); dotCanvas.width = 64; dotCanvas.height = 64; const dotContext = dotCanvas.getContext("2d"); dotContext.fillStyle = "#ffffff"; dotContext.beginPath(); dotContext.arc(32, 32, 30, 0, Math.PI * 2); dotContext.fill(); const dotTexture = new THREE.CanvasTexture(dotCanvas); highlightPoints = new THREE.Points(hp, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, map: dotTexture, alphaTest: .1, depthWrite: false, transparent: true, opacity: 0 })); root.add(highlightPoints); buildAxes(axisRows); document.getElementById("loading").style.display = "none"; render() }
@@ -603,10 +650,10 @@
             const positions = [x, lo, z, x, hi, z];
             highlightLine.geometry.attributes.position.array.set(positions);
             highlightLine.geometry.attributes.position.needsUpdate = true;
-            highlightLine.material.opacity = 1;
+            highlightLine.material.opacity = 0;
             highlightPoints.geometry.attributes.position.array.set(positions);
             highlightPoints.geometry.attributes.position.needsUpdate = true;
-            highlightPoints.material.opacity = 1;
+            highlightPoints.material.opacity = 0;
 
             const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`;
             detail.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}${drillButtonHtml()}`;
@@ -614,7 +661,29 @@
             render();
         }
         function clearSelection() { selectedRowData = null; if (!segments) return; segments.material.opacity = 1; lowerPoints.material.opacity = 1; upperPoints.material.opacity = 1; if (actualNormal) actualNormal.material.opacity = 1; if (actualAbnormal) actualAbnormal.material.opacity = 1; highlightLine.material.opacity = 0; highlightPoints.material.opacity = 0; detail.style.display = "none"; render() }
-        let selectedActualLine = null, selectedActualPoints = null;
+        let selectedActualLine = null, selectedActualPoints = null, selectedStandardBar = null, selectedActualBar = null;
+        function createSelectionBar(color, renderOrder) {
+            const bar = new THREE.Mesh(
+                new THREE.CylinderGeometry(.055, .055, 1, 10),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthTest: false, depthWrite: false })
+            );
+            bar.renderOrder = renderOrder;
+            root.add(bar);
+            return bar;
+        }
+        function ensureSelectionBars() {
+            if (selectedStandardBar?.parent !== root) selectedStandardBar = createSelectionBar(0x2563eb, 33);
+            if (selectedActualBar?.parent !== root) selectedActualBar = createSelectionBar(0x16a34a, 34);
+        }
+        function setSelectionBar(bar, positions, color, visible = true) {
+            if (!bar) return;
+            if (!visible) { bar.material.opacity = 0; return }
+            const y1 = positions[1], y2 = positions[4];
+            bar.position.set(positions[0], (y1 + y2) / 2, positions[2]);
+            bar.scale.set(1, Math.max(Math.abs(y2 - y1), .001), 1);
+            bar.material.color.setHex(color);
+            bar.material.opacity = 1;
+        }
         function ensureSelectedActualOverlay() {
             if (selectedActualLine?.parent === root && selectedActualPoints?.parent === root) return;
             const geometry = new THREE.BufferGeometry();
@@ -651,7 +720,7 @@
             highlightLine.material.color.setHex(0x2563eb);
             highlightLine.geometry.attributes.position.array.set(standardPositions);
             highlightLine.geometry.attributes.position.needsUpdate = true;
-            highlightLine.material.opacity = 1;
+            highlightLine.material.opacity = 0;
             const standardRgb = new THREE.Color(0x2563eb);
             highlightPoints.geometry.attributes.color.array.set([
                 standardRgb.r, standardRgb.g, standardRgb.b,
@@ -660,9 +729,11 @@
             highlightPoints.geometry.attributes.color.needsUpdate = true;
             highlightPoints.geometry.attributes.position.array.set(standardPositions);
             highlightPoints.geometry.attributes.position.needsUpdate = true;
-            highlightPoints.material.opacity = 1;
+            highlightPoints.material.opacity = 0;
 
             ensureSelectedActualOverlay();
+            ensureSelectionBars();
+            setSelectionBar(selectedStandardBar, [], 0, false);
             if (actual) {
                 const actualColor = isAbnormal(d, actual) ? 0xdc2626 : 0x16a34a;
                 const actualPositions = [x, zPosition(actual.lower), z, x, zPosition(actual.upper), z];
@@ -672,13 +743,16 @@
                 selectedActualLine.geometry.attributes.position.needsUpdate = true;
                 selectedActualPoints.geometry.attributes.position.array.set(actualPositions);
                 selectedActualPoints.geometry.attributes.position.needsUpdate = true;
-                selectedActualLine.material.opacity = 1;
-                selectedActualPoints.material.opacity = 1;
+                selectedActualLine.material.opacity = 0;
+                selectedActualPoints.material.opacity = 0;
+                setSelectionBar(selectedActualBar, [], 0, false);
             } else {
                 selectedActualLine.material.opacity = 0;
                 selectedActualPoints.material.opacity = 0;
+                setSelectionBar(selectedActualBar, [], 0, false);
             }
 
+            selectionOverlayData = { d, actual };
             const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`;
             detail.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}${drillButtonHtml()}`;
             detail.style.display = "block";
@@ -686,6 +760,7 @@
         }
         function clearSelection() {
             selectedRowData = null;
+            selectionOverlayData = null;
             if (!segments) return;
             segments.material.opacity = 1;
             lowerPoints.material.opacity = 1;
@@ -697,10 +772,55 @@
             highlightPoints.material.opacity = 0;
             if (selectedActualLine) selectedActualLine.material.opacity = 0;
             if (selectedActualPoints) selectedActualPoints.material.opacity = 0;
+            if (selectedStandardBar) selectedStandardBar.material.opacity = 0;
+            if (selectedActualBar) selectedActualBar.material.opacity = 0;
             detail.style.display = "none";
             render();
         }
-        function rowAt(e) { const r = canvas.getBoundingClientRect(); pointer.x = (e.clientX - r.left) / r.width * 2 - 1; pointer.y = -(e.clientY - r.top) / r.height * 2 + 1; raycaster.setFromCamera(pointer, camera); const targets = [actualAbnormal, actualNormal, lowerPoints, upperPoints, segments].filter(Boolean), hits = raycaster.intersectObjects(targets, false); if (!hits.length) return null; const h = hits[0], kind = h.object.userData.kind, i = (kind === "line" || kind === "actualNormal" || kind === "actualAbnormal") ? Math.floor(h.index / 2) : h.index, d = kind.startsWith("actual") ? h.object.userData.rows[i] : currentRows[i]; return d ? { d, source: kind.startsWith("actual") ? kind : "gold" } : null } function pick(e) { const hit = rowAt(e); if (hit) selectRow(currentRows.indexOf(hit.d), hit.source) } function showTip(e, d) { if (!d) { tooltip.style.display = "none"; return } const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; tooltip.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}`; const r = view.getBoundingClientRect(), maxX = r.width - 310, maxY = r.height - 90; tooltip.style.left = Math.max(0, Math.min(maxX, e.clientX - r.left)) + "px"; tooltip.style.top = Math.max(0, Math.min(maxY, e.clientY - r.top)) + "px"; tooltip.style.display = "block" }
+        function pointToSegmentDistance(px, py, ax, ay, bx, by) {
+            const dx = bx - ax, dy = by - ay;
+            if (dx === 0 && dy === 0) return Math.hypot(px - ax, py - ay);
+            const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+            return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+        }
+        function screenRangeDistance(e, d, range, rect) {
+            const x = xPosition(d.speed), z = yPosition(d.y);
+            const low = new THREE.Vector3(x, zPosition(range.lower), z).project(camera);
+            const high = new THREE.Vector3(x, zPosition(range.upper), z).project(camera);
+            if (low.z < -1 || low.z > 1 || high.z < -1 || high.z > 1) return Infinity;
+            const ax = rect.left + (low.x + 1) * rect.width / 2;
+            const ay = rect.top + (1 - low.y) * rect.height / 2;
+            const bx = rect.left + (high.x + 1) * rect.width / 2;
+            const by = rect.top + (1 - high.y) * rect.height / 2;
+            return pointToSegmentDistance(e.clientX, e.clientY, ax, ay, bx, by);
+        }
+        function rowsAt(e) {
+            if (!currentRows.length || !bounds) return [];
+            const rect = canvas.getBoundingClientRect(), maxDistance = 11, candidates = [];
+            currentRows.forEach(d => {
+                let distance = screenRangeDistance(e, d, { lower: d.lower, upper: d.upper }, rect);
+                if (timeComparisonVisible()) {
+                    const actual = actualFor(d);
+                    if (actual) distance = Math.min(distance, screenRangeDistance(e, d, actual, rect));
+                }
+                if (distance <= maxDistance) candidates.push({ d, source: "gold", distance });
+            });
+            candidates.sort((a, b) => a.distance - b.distance);
+            return candidates;
+        }
+        function rowAt(e) { return rowsAt(e)[0] || null }
+        let lastPick = null;
+        function pick(e) {
+            const candidates = rowsAt(e);
+            if (!candidates.length) { lastPick = null; return }
+            const keys = candidates.map(hit => conditionKey(hit.d.metadataCode, hit.d.steel, hit.d.width, hit.d.speed)).join(";");
+            const samePlace = lastPick && Math.hypot(e.clientX - lastPick.x, e.clientY - lastPick.y) <= 8 && lastPick.keys === keys;
+            const index = samePlace ? (lastPick.index + 1) % candidates.length : 0;
+            lastPick = { x: e.clientX, y: e.clientY, keys, index };
+            const hit = candidates[index];
+            selectRow(currentRows.indexOf(hit.d), hit.source);
+        }
+        function showTip(e, d) { if (!d) { tooltip.style.display = "none"; return } const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; tooltip.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}`; const r = view.getBoundingClientRect(), maxX = r.width - 310, maxY = r.height - 90; tooltip.style.left = Math.max(0, Math.min(maxX, e.clientX - r.left)) + "px"; tooltip.style.top = Math.max(0, Math.min(maxY, e.clientY - r.top)) + "px"; tooltip.style.display = "block" }
         let hoverFrame = 0; canvas.addEventListener("pointerdown", e => { tooltip.style.display = "none"; downAt = { x: e.clientX, y: e.clientY, t: performance.now() } }); canvas.addEventListener("pointerup", e => { if (!downAt) return; const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y); if (moved < 5 && performance.now() - downAt.t < 450) pick(e); downAt = null }); canvas.addEventListener("pointermove", e => { if (downAt || hoverFrame) return; const x = e.clientX, y = e.clientY; hoverFrame = requestAnimationFrame(() => { hoverFrame = 0; (() => { const hit = rowAt({ clientX: x, clientY: y }); showTip({ clientX: x, clientY: y }, hit ? hit.d : null) })() }) }); canvas.addEventListener("pointerleave", () => { tooltip.style.display = "none" }); canvas.addEventListener("dblclick", e => { e.preventDefault(); tooltip.style.display = "none"; clearSelection() });
         let selectionGestureStart = null, suppressSelectionClick = false;
         canvas.addEventListener("pointerdown", e => {
@@ -724,10 +844,6 @@
             }
         }, true);
         canvas.addEventListener("click", e => { if (!rowAt(e)) { tooltip.style.display = "none"; clearSelection() } });
-        canvas.addEventListener("click", e => {
-            const hit = rowAt(e);
-            if (hit) selectRow(currentRows.indexOf(hit.d), hit.source);
-        });
         const drilldown = document.getElementById("drilldown"), drillTitle = document.getElementById("drillTitle"), drillScene = document.getElementById("drillScene"), drillSummary = document.getElementById("drillSummary"), drillWrap = document.getElementById("drillWrap"), drillSvg = document.getElementById("drillSvg"), drillTip = document.getElementById("drillTip"), drillTable = document.getElementById("drillTable"), drillTableBtn = document.getElementById("drillTableBtn"), drillClose = document.getElementById("drillClose");
         let selectedRowData = null, drillDays = [], drillGeom = null;
         const drillBad = (x, d) => x.l < d.lower || x.u > d.upper, fmtVal = v => Number(v.toPrecision(6)).toString();
@@ -822,6 +938,7 @@
             const upperLegendDot = document.getElementById("standardUpperLegendDot");
             if (upperLegendDot) upperLegendDot.style.background = comparingTime ? "#2563eb" : "#e11d48";
             renderer.render(scene, camera);
+            updateSelectionOverlay();
         }
         async function fetchJson(url) {
             const response = await fetch(url, { cache: "no-store" });
