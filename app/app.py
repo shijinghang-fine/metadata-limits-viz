@@ -11,7 +11,11 @@ from werkzeug.serving import make_server
 
 
 ROOT = Path(__file__).resolve().parent
-DB_CONFIG_FILE = Path(r"D:\数据查找方式\history\daily_limits_config.yaml")
+PROJECT_ROOT = ROOT.parent
+DB_CONFIG_FILE = Path(os.environ.get(
+    "METADATA_CONFIG_FILE",
+    PROJECT_ROOT / "config" / "config.yaml",
+))
 API_BIND_HOST = "0.0.0.0"
 API_PORT = 8765
 
@@ -68,12 +72,6 @@ def create_api():
     @api.get("/chart")
     def chart_page():
         chart_html = (ROOT / "chart.html").read_text(encoding="utf-8")
-        plotly_js = (ROOT / "plotly.min.js").read_text(encoding="utf-8")
-        chart_html = chart_html.replace(
-            '<script src="plotly.min.js"></script>',
-            f"<script>{plotly_js}</script>",
-            1,
-        )
         return Response(chart_html, content_type="text/html; charset=utf-8")
 
     @api.get("/api/metadata")

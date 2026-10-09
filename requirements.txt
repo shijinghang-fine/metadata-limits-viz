@@ -2,3 +2,7 @@ streamlit>=1.40,<2
 Flask>=3.0,<4
 PyMySQL>=1.1,<2
 PyYAML>=6,<7
+pandas>=2.0,<3
+influxdb-client>=1.40,<2
+openpyxl>=3.1,<4
+pytz>=2024.1

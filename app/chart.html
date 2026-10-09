@@ -1,0 +1,1277 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>元数据工艺场景上下限</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            background: #f3f6fa;
+            color: #172033;
+            font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: end;
+            gap: 20px;
+            padding: 16px 24px 13px;
+            background: rgba(255, 255, 255, .96);
+            border-bottom: 1px solid #e6ebf2
+        }
+
+        h1 {
+            margin: 0 0 5px;
+            font-size: 21px;
+            font-weight: 650;
+            letter-spacing: .1px
+        }
+
+        .sub {
+            font-size: 12.5px;
+            color: #718096
+        }
+
+        .stats {
+            display: flex;
+            gap: 10px
+        }
+
+        .stats>div {
+            min-width: 72px;
+            padding: 7px 10px;
+            border: 1px solid #e7ecf3;
+            border-radius: 10px;
+            background: #f8fafc;
+            text-align: center
+        }
+
+        .stats b {
+            display: block;
+            font-size: 18px;
+            font-variant-numeric: tabular-nums
+        }
+
+        .stats span {
+            font-size: 12px;
+            color: #64748b
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 7px 14px;
+            background: #fbfcfe;
+            border-bottom: 1px solid #e6ebf2
+        }
+
+        label {
+            font-size: 13px;
+            color: #475569
+        }
+
+        select,
+        input {
+            padding: 4px 8px;
+            border: 1px solid #d7dee8;
+            border-radius: 7px;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+            font: inherit;
+            font-size: 13px
+        }
+
+        .meta {
+            max-width: 230px
+        }
+
+        #spec {
+            max-width: 220px
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap
+        }
+
+        .toolbar-secondary {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 0 0 100%;
+            width: 100%;
+            min-width: 0;
+            overflow: hidden;
+            order: 2
+        }
+
+        .result-count {
+            padding: 3px 7px;
+            border-radius: 7px;
+            background: #eef6ff;
+            color: #1d4f91;
+            font-size: 12px;
+            font-weight: 650;
+            white-space: nowrap
+        }
+
+        .reset-button {
+            padding: 4px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            background: #fff;
+            color: #334155;
+            font: inherit;
+            font-size: 12.5px;
+            cursor: pointer;
+            white-space: nowrap;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .04)
+        }
+
+        .reset-button:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8
+        }
+
+        .date-status { font-size: 12px; color: #64748b; white-space: nowrap }
+        .date-status.error { color: #dc2626; font-weight: 600 }
+
+        .view-switch { display: inline-flex; padding: 2px; border: 1px solid #cbd5e1; border-radius: 9px; background: #eef2f7 }
+        .view-button { padding: 4px 9px; border: 0; border-radius: 6px; background: transparent; color: #475569; font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap }
+        .view-button.active { background: #2563eb; color: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, .2) }
+
+        .mode-badge {
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #e8f1ff;
+            color: #2457a7;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap
+        }
+
+        .hint {
+            margin-left: auto;
+            font-size: 11.5px;
+            color: #64748b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0
+        }
+
+        #view {
+            position: relative;
+            flex: 1;
+            min-height: 480px;
+            background: radial-gradient(circle at 52% 44%, #ffffff 0, #f5f7fb 54%, #eef2f7 100%)
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block
+        }
+
+        .selection-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 6;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none
+        }
+
+        .legend {
+            position: absolute;
+            left: 18px;
+            top: 18px;
+            background: rgba(255, 255, 255, .94);
+            padding: 10px 13px;
+            border: 1px solid rgba(215, 222, 232, .9);
+            border-radius: 10px;
+            font-size: 12px;
+            line-height: 1.8;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, .07);
+            backdrop-filter: blur(8px)
+        }
+
+        .sw {
+            display: inline-block;
+            width: 18px;
+            height: 3px;
+            margin-right: 7px;
+            vertical-align: middle
+        }
+
+        .dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin: 0 12px 0 5px
+        }
+
+        .detail {
+            position: absolute;
+            right: 18px;
+            top: 18px;
+            max-width: 340px;
+            background: rgba(255, 255, 255, .96);
+            padding: 13px 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 11px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .1);
+            backdrop-filter: blur(8px);
+            font-size: 14px;
+            line-height: 1.7;
+            display: none
+        }
+
+        .detail b {
+            font-size: 15px
+        }
+
+        .tooltip {
+            position: absolute;
+            z-index: 8;
+            display: none;
+            pointer-events: none;
+            max-width: 340px;
+            padding: 11px 13px;
+            border: 1px solid rgba(203, 213, 225, .9);
+            border-radius: 9px;
+            background: rgba(15, 23, 42, .9);
+            color: #fff;
+            font-size: 14px;
+            line-height: 1.65;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, .2);
+            backdrop-filter: blur(6px);
+            transform: translate(12px, 12px)
+        }
+
+        .tooltip b {
+            font-weight: 650;
+            color: #fff
+        }
+
+        .tooltip .muted {
+            color: #cbd5e1
+        }
+
+        .loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f5f7fb;
+            color: #64748b;
+            z-index: 5
+        }
+
+        .drill-btn {
+            margin-top: 9px;
+            padding: 6px 11px;
+            border: 1px solid #bfd3f6;
+            border-radius: 8px;
+            background: #eef6ff;
+            color: #1d4f91;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer
+        }
+
+        .drill-btn:hover {
+            background: #e2efff;
+            border-color: #93b8f0
+        }
+
+        .drilldown {
+            position: absolute;
+            inset: 0;
+            z-index: 9;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px 20px 14px;
+            background: #f3f6fa;
+            overflow: auto
+        }
+
+        .drilldown.open {
+            display: flex
+        }
+
+        .drill-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap
+        }
+
+        .drill-head b {
+            font-size: 16.5px;
+            font-weight: 650
+        }
+
+        .drill-sub {
+            font-size: 12.5px;
+            color: #64748b
+        }
+
+        .drill-summary {
+            font-size: 13px;
+            color: #334155;
+            font-weight: 600
+        }
+
+        .drill-head .reset-button {
+            margin-left: auto
+        }
+
+        .drill-card {
+            flex: 1;
+            min-height: 320px;
+            display: flex;
+            flex-direction: column;
+            padding: 12px 14px 8px;
+            border: 1px solid #e6ebf2;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, .06)
+        }
+
+        .drill-legend {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            padding: 0 4px 8px;
+            font-size: 12px;
+            color: #475569
+        }
+
+        .drill-legend .key {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px
+        }
+
+        .drill-tools {
+            display: flex;
+            align-items: center;
+            gap: 10px
+        }
+
+        .drill-table {
+            display: none;
+            max-height: 240px;
+            overflow: auto;
+            border: 1px solid #e6ebf2;
+            border-radius: 10px;
+            background: #fff
+        }
+
+        .drill-table.show {
+            display: block
+        }
+
+        .drill-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+            font-variant-numeric: tabular-nums
+        }
+
+        .drill-table th {
+            position: sticky;
+            top: 0;
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            text-align: right;
+            padding: 7px 12px;
+            border-bottom: 1px solid #e6ebf2;
+            white-space: nowrap
+        }
+
+        .drill-table td {
+            padding: 6px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            text-align: right;
+            color: #172033;
+            white-space: nowrap
+        }
+
+        .drill-table th:first-child,
+        .drill-table td:first-child {
+            text-align: left
+        }
+
+        .status-ok {
+            color: #15803d;
+            font-weight: 600
+        }
+
+        .status-bad {
+            color: #dc2626;
+            font-weight: 600
+        }
+
+        @media(max-width:780px) {
+            header {
+                align-items: start;
+                flex-direction: column
+            }
+
+            .hint {
+                margin-left: 0;
+                width: 100%
+            }
+
+            #view {
+                height: 780px;
+                flex: none
+            }
+
+            .detail {
+                max-width: 270px
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div>
+            <h1 id="title">元数据工艺场景上下限</h1>
+            <div class="sub" id="axisDescription">X轴：拉速；Y轴：钢种＋宽度；Z轴：当前元数据上下限值。</div>
+        </div>
+    </header>
+    <div class="toolbar">
+        <div class="filter-group"><label for="metadata">元数据</label><select id="metadata" class="meta"></select></div>
+        <div class="filter-group"><label for="spec">钢种规格</label><select id="spec">
+                <option value="全部">全部</option>
+            </select></div>
+        <div class="filter-group time-only"><label for="startDate">开始</label><input type="date" id="startDate"></div>
+        <div class="filter-group time-only"><label for="endDate">结束</label><input type="date" id="endDate"></div>
+        <button type="button" id="applyDates" class="reset-button time-only">查询时间</button>
+        <span id="dateStatus" class="date-status time-only"></span>
+
+        <div class="toolbar-secondary">
+            <div class="result-count" id="resultCount">符合条件：0 条</div>
+            <button type="button" id="resetFilters" class="reset-button">重置筛选</button>
+            <button type="button" id="boundsOnlyReset" class="reset-button compare-only" style="display:none">复位只看上下限</button>
+            <div class="view-switch" aria-label="视图切换">
+                <button type="button" id="view2dButton" class="view-button active">二维点位分布</button>
+                <button type="button" id="view3dButton" class="view-button">三维上下限</button>
+            </div>
+            <span class="mode-badge">浇铸模式</span>
+            <div class="hint">左键旋转 · 右键平移 · 滚轮缩放 · 单击高亮 · 双击取消</div>
+        </div>
+    </div>
+    <div id="view"><canvas id="canvas"></canvas>
+        <svg id="selectionOverlay" class="selection-overlay" aria-hidden="true">
+            <g id="selectionOverlayGroup" style="display:none">
+                <line id="standardOverlayLine" stroke="#2563eb" stroke-width="1" vector-effect="non-scaling-stroke"/>
+                <circle id="standardOverlayLower" r="2" fill="#2563eb"/>
+                <circle id="standardOverlayUpper" r="2" fill="#2563eb"/>
+                <line id="actualOverlayLine" stroke="#dc2626" stroke-width="1" vector-effect="non-scaling-stroke"/>
+                <circle id="actualOverlayLower" r="2" fill="#dc2626"/>
+                <circle id="actualOverlayUpper" r="2" fill="#dc2626"/>
+            </g>
+            <circle id="distributionSelection" r="4.5" fill="#2563eb" stroke="#ffffff" stroke-width="1.5" style="display:none"/>
+        </svg>
+        <div class="loading" id="loading">正在构建 Three.js 场景…</div>
+        <div class="legend">
+            <div id="standardRangeLegend"><span class="sw" style="background:#2563eb"></span>标准上下限范围</div>
+            <div id="standardDotsLegend"><span class="dot" style="background:#2563eb"></span>标准下限 <span id="standardUpperLegendDot" class="dot"
+                    style="background:#e11d48"></span>标准上限</div>
+            <div id="actualNormalLegend" class="compare-only"><span class="sw" style="background:#16a34a;height:5px"></span>实际范围（正常）</div>
+            <div id="actualAbnormalLegend" class="compare-only"><span class="sw" style="background:#dc2626;height:5px"></span>实际范围（超标）</div>
+            <div id="selectionLegend"><span class="sw" style="background:#111827;height:5px"></span><span id="selectionLegendText">单击突出所选标准与实际范围</span></div>
+            <div id="distributionLegend" style="display:none"><span class="dot" id="distributionBlueDot" style="background:#2563eb"></span><span id="distributionLegendText">工艺点位</span></div>
+        </div>
+        <div class="detail" id="detail"></div>
+        <div class="tooltip" id="tooltip"></div>
+        <div class="drilldown" id="drilldown">
+            <div class="drill-head">
+                <b id="drillTitle"></b><span class="drill-sub" id="drillScene"></span>
+                <span class="drill-summary" id="drillSummary"></span>
+                <button type="button" id="drillClose" class="reset-button">← 返回三维视图</button>
+            </div>
+            <div class="drill-card">
+                <div class="drill-legend">
+                    <span class="key"><svg width="20" height="12" aria-hidden="true"><line x1="2" y1="6" x2="18" y2="6" stroke="#16a34a" stroke-width="2"/><circle cx="10" cy="6" r="3.5" fill="#16a34a" stroke="#fff" stroke-width="1.5"/></svg>实际日范围（在标准内）</span>
+                    <span class="key"><svg width="20" height="12" aria-hidden="true"><line x1="2" y1="6" x2="18" y2="6" stroke="#dc2626" stroke-width="2"/><path d="M 7 3 L 13 9 M 7 9 L 13 3" stroke="#dc2626" stroke-width="2" stroke-linecap="round" fill="none"/></svg>实际日范围（超标）</span>
+                    <span class="key"><svg width="20" height="12" aria-hidden="true"><line x1="2" y1="6" x2="18" y2="6" stroke="#475569" stroke-width="1.5" stroke-dasharray="5 3"/></svg>上限标准 / 下限标准</span>
+                    <span class="key"><svg width="20" height="12" aria-hidden="true"><rect x="2" y="3" width="16" height="6" rx="1.5" fill="rgba(71,85,105,.12)"/></svg>允许区间</span>
+                </div>
+                <div id="drillWrap" style="flex:1;min-height:0;position:relative">
+                    <svg id="drillSvg" width="100%" height="100%" role="img"></svg>
+                    <div class="tooltip" id="drillTip"></div>
+                </div>
+            </div>
+            <div class="drill-tools">
+                <button type="button" id="drillTableBtn" class="reset-button">显示数据表</button>
+                <span class="drill-sub">悬停查看每日数值 · Esc 返回三维视图</span>
+            </div>
+            <div class="drill-table" id="drillTable"></div>
+        </div>
+    </div>
+    <script>
+        let records = [];
+        let dailyRecords = [];
+        let metadataCatalog = [];
+        let availableDates = [];
+        let minAvailableDate = "", maxAvailableDate = "";
+        const API_BASE = `${window.location.origin}/api`;
+        const conditionKey = (code, steel, width, speed) => [code, steel, Number(width), Number(speed).toFixed(2)].join("|");
+        const inclusiveDays = (start, end) => Math.round((Date.parse(end + "T00:00:00Z") - Date.parse(start + "T00:00:00Z")) / 86400000) + 1;
+        function aggregateActual(start, end) {
+            const result = new Map();
+            dailyRecords.forEach(d => {
+                if (d.d < start || d.d > end) return;
+                const key = conditionKey(d.c, d.s, d.w, d.v), found = result.get(key);
+                if (found) { found.lower = Math.min(found.lower, d.l); found.upper = Math.max(found.upper, d.u); found.count += d.n }
+                else result.set(key, { lower: d.l, upper: d.u, count: d.n });
+            });
+            return result;
+        }
+        let selectedStartDate = "";
+        let selectedEndDate = "";
+        let viewMode = "standard";
+        let actualByKey = new Map();
+        const actualFor = d => actualByKey.get(conditionKey(d.metadataCode, d.steel, d.width, d.speed));
+        const isAbnormal = (d, actual) => actual && (actual.lower < d.lower || actual.upper > d.upper);
+        const timeComparisonVisible = () => viewMode === "compare" && !boundsOnlyActive;
+        function comparisonHtml(d) { if (!timeComparisonVisible()) return ""; const actual = actualFor(d); if (!actual) return `<br><b>所选时间无实际数据</b>`; const abnormal = isAbnormal(d, actual); return `<br>实际最小值：${Number(actual.lower).toPrecision(6)}<br>实际最大值：${Number(actual.upper).toPrecision(6)}<br>有效数据量：${actual.count.toLocaleString()}<br><b style="color:${abnormal ? '#dc2626' : '#15803d'}">${abnormal ? '异常：超出上下限标准' : '正常：位于上下限标准内'}</b>` }
+        const drillButtonHtml = () => timeComparisonVisible() ? `<br><button type="button" class="drill-btn" data-drill="1">每日上下限时间对比（二维图）→</button>` : "";
+
+        const metadata = document.getElementById("metadata"), spec = document.getElementById("spec"), resultCount = document.getElementById("resultCount"), resetFilters = document.getElementById("resetFilters"), boundsOnlyReset = document.getElementById("boundsOnlyReset"), detail = document.getElementById("detail"), view = document.getElementById("view"), canvas = document.getElementById("canvas"), tooltip = document.getElementById("tooltip"), startDate = document.getElementById("startDate"), endDate = document.getElementById("endDate"), applyDates = document.getElementById("applyDates"), dateStatus = document.getElementById("dateStatus"), selectionOverlayGroup = document.getElementById("selectionOverlayGroup"), distributionSelection = document.getElementById("distributionSelection"), standardOverlayLine = document.getElementById("standardOverlayLine"), standardOverlayLower = document.getElementById("standardOverlayLower"), standardOverlayUpper = document.getElementById("standardOverlayUpper"), actualOverlayLine = document.getElementById("actualOverlayLine"), actualOverlayLower = document.getElementById("actualOverlayLower"), actualOverlayUpper = document.getElementById("actualOverlayUpper");
+        const view3dButton = document.getElementById("view3dButton"), view2dButton = document.getElementById("view2dButton"), axisDescription = document.getElementById("axisDescription"), standardRangeLegend = document.getElementById("standardRangeLegend"), standardDotsLegend = document.getElementById("standardDotsLegend"), selectionLegend = document.getElementById("selectionLegend"), distributionLegend = document.getElementById("distributionLegend"), distributionBlueDot = document.getElementById("distributionBlueDot"), distributionLegendText = document.getElementById("distributionLegendText");
+        metadata.innerHTML = '<option value="">正在读取数据库…</option>';
+        dateStatus.textContent = "正在连接数据库…";
+        const displaySpeed = v => Number(v).toFixed(2);
+        function fillSelect(select, values, format = v => v) { const previous = select.value; select.innerHTML = '<option value="全部">全部</option>'; values.forEach(v => { const o = document.createElement("option"); o.value = String(v); o.textContent = format(v); select.appendChild(o) }); if ([...select.options].some(o => o.value === previous)) select.value = previous }
+        function fillSpecSelect(base) { const previous = spec.value; spec.innerHTML = '<option value="全部">全部钢种规格（' + base.length + ' 条）</option>'; const steels = [...new Set(base.map(d => d.steel))].sort((a, b) => a.localeCompare(b, "zh-CN")); steels.forEach(steel => { const rows = base.filter(d => d.steel === steel), group = document.createElement("optgroup"); group.label = steel; const all = document.createElement("option"); all.value = "steel:" + steel; all.textContent = steel + "规格的全部宽度（" + rows.length + " 条）"; group.appendChild(all);[...new Set(rows.map(d => d.yLabel))].sort((a, b) => a.localeCompare(b, "zh-CN")).forEach(label => { const option = document.createElement("option"), count = rows.filter(d => d.yLabel === label).length; option.value = "spec:" + label; option.textContent = label + "（" + count + " 条）"; group.appendChild(option) }); spec.appendChild(group) }); if ([...spec.options].some(o => o.value === previous)) spec.value = previous }
+        function visibleStandardRows() { return viewMode === "compare" ? records.filter(d => actualFor(d)) : records }
+        function refreshFilterOptions() { fillSpecSelect(records) }
+        function matchesSpec(d) { return spec.value === "全部" || spec.value === "steel:" + d.steel || spec.value === "spec:" + d.yLabel }
+        function standardFiltered() { return records.filter(matchesSpec) }
+        function filtered() { return visibleStandardRows().filter(matchesSpec) }
+        function updateDateStatusForSpec() {
+            if (viewMode !== "compare") return;
+            const days = inclusiveDays(selectedStartDate, selectedEndDate);
+            const hasActual = records.some(d => matchesSpec(d) && actualFor(d));
+            if (spec.value !== "全部" && !hasActual) {
+                const label = spec.selectedOptions[0]?.textContent || "所选钢种规格";
+                dateStatus.textContent = `所选时间段内，“${label}”没有实际生产数据`;
+                dateStatus.classList.add("error");
+            } else {
+                dateStatus.textContent = `已查询：${selectedStartDate} 至 ${selectedEndDate}（${days}天）`;
+                dateStatus.classList.remove("error");
+            }
+        }
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" }); renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio, 2), 3)); renderer.setClearColor(0xf5f7fb, 0);
+        const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(38, 1, .1, 200); camera.position.set(31, 18, 29);
+        const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = .08; controls.screenSpacePanning = true; controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }; controls.target.set(0, 5.2, 0);
+        const root = new THREE.Group(); scene.add(root); const raycaster = new THREE.Raycaster(); raycaster.params.Line.threshold = .45; raycaster.params.Points.threshold = .55; const pointer = new THREE.Vector2();
+        const xMin = -18, xMax = 18; let currentRows = [], ySlots = [], xDataMin = 0, xDataMax = 1, bounds = null, segments = null, lowerPoints = null, upperPoints = null, actualNormal = null, actualAbnormal = null, actualPointLayers = [], boundsOnlyActive = false, highlightLine = null, highlightPoints = null, labelGroup = null, gridGroup = null, flatGridGroup = null, flatLabelGroup = null, downAt = null, distributionPoints = null, dimensionMode = "2d", dimensionAnimating = false, saved3dCamera = null;
+        const blue = new THREE.Color(0x2563eb), red = new THREE.Color(0xe11d48), orange = new THREE.Color(0xf59e0b);
+        function disposeObject(o) { o.traverse(n => { if (n.geometry) n.geometry.dispose(); if (n.material) { const a = Array.isArray(n.material) ? n.material : [n.material]; a.forEach(m => { if (m.map) m.map.dispose(); m.dispose() }) } }); o.clear() }
+        function map(v, a, b, A, B) { return b === a ? (A + B) / 2 : A + (v - a) * (B - A) / (b - a) } function xPosition(v) { if (Math.abs(v) < 1e-9) return xMin; if (xDataMin > 0 && v >= xDataMin) return map(v, xDataMin, xDataMax, xMin + 2.2, xMax); return map(v, bounds.xmin, bounds.xmax, xMin, xMax) } function yPosition(v) { const index = ySlots.indexOf(v); return index < 0 ? 0 : 12 - (index + 1) * 24 / (ySlots.length + 1) } function zPosition(v) { if (bounds.zmin <= 0 && bounds.zmax >= 0) { const extent = Math.max(Math.abs(bounds.zmin), Math.abs(bounds.zmax), 1e-9); return v / extent * 14 } return map(v, bounds.zmin, bounds.zmax, 0, 14) }
+        let selectionOverlayData = null;
+        function overlayPoint(d, value) {
+            const projected = new THREE.Vector3(xPosition(d.speed), zPosition(value), yPosition(d.y)).project(camera);
+            return { x: (projected.x + 1) * canvas.clientWidth / 2, y: (1 - projected.y) * canvas.clientHeight / 2 };
+        }
+        function positionOverlayRange(line, lowerDot, upperDot, d, range) {
+            const lower = overlayPoint(d, range.lower), upper = overlayPoint(d, range.upper);
+            line.setAttribute("x1", lower.x); line.setAttribute("y1", lower.y);
+            line.setAttribute("x2", upper.x); line.setAttribute("y2", upper.y);
+            lowerDot.setAttribute("cx", lower.x); lowerDot.setAttribute("cy", lower.y);
+            upperDot.setAttribute("cx", upper.x); upperDot.setAttribute("cy", upper.y);
+        }
+        function updateSelectionOverlay() {
+            if (!selectionOverlayData || !bounds) { selectionOverlayGroup.style.display = "none"; distributionSelection.style.display = "none"; return }
+            const { d, actual } = selectionOverlayData;
+            if (dimensionMode === "2d") {
+                selectionOverlayGroup.style.display = "none";
+                const point = new THREE.Vector3(xPosition(d.speed), .12, yPosition(d.y)).project(camera);
+                distributionSelection.setAttribute("cx", (point.x + 1) * canvas.clientWidth / 2);
+                distributionSelection.setAttribute("cy", (1 - point.y) * canvas.clientHeight / 2);
+                const color = viewMode === "compare" ? (isAbnormal(d, actual) ? "#dc2626" : "#16a34a") : "#2563eb";
+                distributionSelection.setAttribute("fill", color);
+                distributionSelection.setAttribute("stroke", "#ffffff");
+                distributionSelection.style.display = "";
+                return;
+            }
+            distributionSelection.style.display = "none";
+            selectionOverlayGroup.style.display = "";
+            positionOverlayRange(standardOverlayLine, standardOverlayLower, standardOverlayUpper, d, { lower: d.lower, upper: d.upper });
+            const showActual = actual && timeComparisonVisible();
+            actualOverlayLine.style.display = actualOverlayLower.style.display = actualOverlayUpper.style.display = showActual ? "" : "none";
+            if (showActual) {
+                const color = isAbnormal(d, actual) ? "#dc2626" : "#16a34a";
+                actualOverlayLine.setAttribute("stroke", color);
+                actualOverlayLower.setAttribute("fill", color);
+                actualOverlayUpper.setAttribute("fill", color);
+                positionOverlayRange(actualOverlayLine, actualOverlayLower, actualOverlayUpper, d, actual);
+            }
+        }
+        function flatXPosition(value) {
+            const index = ySlots.indexOf(value);
+            return ySlots.length <= 1 ? 0 : map(index, 0, ySlots.length - 1, xMin, xMax);
+        }
+        function flatYPosition(speed) {
+            return -xPosition(speed) * 2 / 3;
+        }
+        function flatCameraDistance() {
+            const halfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+            const aspect = Math.max(camera.aspect || 1, .5);
+            const fitHeight = 34 / (2 * halfFov);
+            const fitWidth = 46 / (2 * halfFov * aspect);
+            return Math.max(fitHeight, fitWidth) * 1.02;
+        }
+        function buildDistributionPoints() {
+            const positions = [], colors = [];
+            currentRows.forEach(d => {
+                positions.push(xPosition(d.speed), .12, yPosition(d.y));
+                let color = blue;
+                if (viewMode === "compare") {
+                    const actual = actualFor(d);
+                    color = isAbnormal(d, actual) ? new THREE.Color(0xdc2626) : new THREE.Color(0x16a34a);
+                }
+                colors.push(color.r, color.g, color.b);
+            });
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+            const pointCanvas = document.createElement("canvas");
+            pointCanvas.width = pointCanvas.height = 64;
+            const pointContext = pointCanvas.getContext("2d");
+            pointContext.fillStyle = "#fff";
+            pointContext.beginPath();
+            pointContext.arc(32, 32, 29, 0, Math.PI * 2);
+            pointContext.fill();
+            const pointTexture = new THREE.CanvasTexture(pointCanvas);
+            distributionPoints = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 4, sizeAttenuation: false, vertexColors: true, map: pointTexture, alphaTest: .35, transparent: true, opacity: dimensionMode === "2d" ? 1 : 0, depthTest: false, depthWrite: false }));
+            distributionPoints.renderOrder = 25;
+            root.add(distributionPoints);
+        }
+        function buildFlatAxes(rows) {
+            flatGridGroup = new THREE.Group();
+            flatLabelGroup = new THREE.Group();
+            root.add(flatGridGroup, flatLabelGroup);
+            const gridPositions = [];
+            for (let i = 0; i <= 5; i++) {
+                const x = xMin + i * (xMax - xMin) / 5;
+                const z = -12 + i * 24 / 5;
+                gridPositions.push(x, 0, -12, x, 0, 12, xMin, 0, z, xMax, 0, z);
+            }
+            const gridGeometry = new THREE.BufferGeometry();
+            gridGeometry.setAttribute("position", new THREE.Float32BufferAttribute(gridPositions, 3));
+            flatGridGroup.add(new THREE.LineSegments(gridGeometry, new THREE.LineBasicMaterial({ color: 0xd7dee8, transparent: true, opacity: .56 })));
+            const axisGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(xMin, 0, 12), new THREE.Vector3(xMax + 1, 0, 12),
+                new THREE.Vector3(xMin, 0, 12), new THREE.Vector3(xMin, 0, -13),
+            ]);
+            flatGridGroup.add(new THREE.LineSegments(axisGeometry, new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: .9 })));
+            addLabel(flatLabelGroup, "X：拉速", new THREE.Vector3(xMax + 1.6, .05, 12.2), .52, "#1e293b", 650);
+            addLabel(flatLabelGroup, "Y：钢种＋宽度", new THREE.Vector3(xMin, .05, -13.5), .5, "#1e293b", 650);
+            const minorMin = Math.ceil(xDataMin * 100) / 100;
+            const minorMax = Math.floor(bounds.xmax * 100) / 100;
+            const labelMin = Math.ceil(xDataMin * 20) / 20;
+            const labelMax = Math.floor(bounds.xmax * 20) / 20;
+            const tickPositions = [xMin, 0, 12, xMin, 0, 12.3];
+            for (let value = minorMin; value <= minorMax + 1e-9; value += .01) {
+                const x = xPosition(Number(value.toFixed(2)));
+                tickPositions.push(x, 0, 12, x, 0, 12.13);
+            }
+            for (let value = labelMin; value <= labelMax + 1e-9; value += .05) {
+                const fixed = Number(value.toFixed(2)), x = xPosition(fixed);
+                if (Math.abs(fixed) > 1e-9) {
+                    const label = addLabel(flatLabelGroup, displaySpeed(fixed), new THREE.Vector3(x, .05, 12.65), .55, "#475569", 600);
+                    label.material.rotation = Math.PI / 2;
+                }
+                tickPositions.push(x, 0, 12, x, 0, 12.3);
+            }
+            const tickGeometry = new THREE.BufferGeometry();
+            tickGeometry.setAttribute("position", new THREE.Float32BufferAttribute(tickPositions, 3));
+            flatGridGroup.add(new THREE.LineSegments(tickGeometry, new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: .65 })));
+            const ys = [...new Set(rows.map(d => d.y))].sort((a, b) => a - b);
+            const count = Math.min(6, ys.length), chosen = [];
+            for (let i = 0; i < count; i++) {
+                const index = count === 1 ? 0 : Math.round(i * (ys.length - 1) / (count - 1));
+                if (!chosen.includes(ys[index])) chosen.push(ys[index]);
+            }
+            chosen.forEach(value => {
+                const row = rows.find(d => d.y === value);
+                addLabel(flatLabelGroup, row.yLabel.replace("｜", " · "), new THREE.Vector3(xMin - .62, .05, yPosition(value)), .52, "#475569", 600);
+            });
+        }
+        function dimensionLayers() { return [segments, lowerPoints, upperPoints, actualNormal, actualAbnormal, ...actualPointLayers].filter(Boolean) }
+        function setDimensionScale(value) { dimensionLayers().forEach(layer => { layer.scale.y = value }) }
+        function updateDimensionUi() {
+            const is2d = dimensionMode === "2d";
+            view2dButton.classList.toggle("active", is2d);
+            view3dButton.classList.toggle("active", !is2d);
+            axisDescription.textContent = is2d
+                ? "X轴：拉速；Y轴：钢种＋宽度；点颜色表示所选时间内是否超限。"
+                : "X轴：拉速；Y轴：钢种＋宽度；Z轴：当前元数据上下限值。";
+            standardRangeLegend.style.display = standardDotsLegend.style.display = selectionLegend.style.display = is2d ? "none" : "";
+            if (is2d) {
+                document.getElementById("actualNormalLegend").style.display = "none";
+                document.getElementById("actualAbnormalLegend").style.display = "none";
+                distributionLegend.style.display = "";
+                distributionLegend.innerHTML = viewMode === "compare"
+                    ? '<span class="dot" style="background:#16a34a"></span>未超限点位　<span class="dot" style="background:#dc2626"></span>超限点位'
+                    : '<span class="dot" style="background:#2563eb"></span>工艺点位';
+                boundsOnlyReset.style.display = "none";
+                document.getElementById("title").textContent = (metadata.selectedOptions[0]?.textContent || "元数据") + "点位分布";
+            } else {
+                distributionLegend.style.display = "none";
+                document.getElementById("actualNormalLegend").style.display = viewMode === "compare" && !boundsOnlyActive ? "" : "none";
+                document.getElementById("actualAbnormalLegend").style.display = viewMode === "compare" && !boundsOnlyActive ? "" : "none";
+                boundsOnlyReset.style.display = viewMode === "compare" ? "" : "none";
+                document.getElementById("title").textContent = (metadata.selectedOptions[0]?.textContent || "元数据") + "上下限";
+            }
+        }
+        function applyDimensionState() {
+            const is2d = dimensionMode === "2d";
+            if (is2d && !saved3dCamera) {
+                saved3dCamera = { position: camera.position.clone(), target: controls.target.clone(), up: camera.up.clone() };
+                camera.position.set(0, flatCameraDistance(), .01);
+                controls.target.set(0, 0, 0);
+                camera.up.set(0, 0, -1);
+                camera.lookAt(controls.target);
+            }
+            setDimensionScale(is2d ? 0 : 1);
+            dimensionLayers().forEach(layer => { layer.visible = !is2d });
+            if (!is2d) {
+                if (actualNormal) actualNormal.visible = !boundsOnlyActive;
+                if (actualAbnormal) actualAbnormal.visible = !boundsOnlyActive;
+                actualPointLayers.forEach(layer => { layer.visible = !boundsOnlyActive });
+            }
+            if (distributionPoints) distributionPoints.material.opacity = is2d ? 1 : 0;
+            if (labelGroup) labelGroup.visible = !is2d;
+            if (gridGroup) gridGroup.visible = !is2d;
+            if (flatGridGroup) flatGridGroup.visible = is2d;
+            if (flatLabelGroup) flatLabelGroup.visible = is2d;
+            controls.enableRotate = !is2d;
+            updateDimensionUi();
+            updateDimensionStats();
+            updateSelectionOverlay();
+        }
+        function switchDimension(nextMode) {
+            if (dimensionAnimating || nextMode === dimensionMode || !segments) return;
+            clearSelection();
+            dimensionAnimating = true;
+            controls.enabled = false;
+            const going2d = nextMode === "2d";
+            if (!going2d) dimensionLayers().forEach(layer => { layer.visible = true });
+            if (gridGroup) gridGroup.visible = !going2d;
+            if (labelGroup) labelGroup.visible = !going2d;
+            if (flatGridGroup) flatGridGroup.visible = going2d;
+            if (flatLabelGroup) flatLabelGroup.visible = going2d;
+            if (going2d) saved3dCamera = { position: camera.position.clone(), target: controls.target.clone(), up: camera.up.clone() };
+            const fromPosition = camera.position.clone(), fromTarget = controls.target.clone(), fromUp = camera.up.clone();
+            const toPosition = going2d ? new THREE.Vector3(0, flatCameraDistance(), .01) : (saved3dCamera?.position || new THREE.Vector3(31, 18, 29));
+            const toTarget = going2d ? new THREE.Vector3(0, 0, 0) : (saved3dCamera?.target || new THREE.Vector3(0, 5.2, 0));
+            const toUp = going2d ? new THREE.Vector3(0, 0, -1) : (saved3dCamera?.up || new THREE.Vector3(0, 1, 0));
+            const start = performance.now(), duration = 700;
+            if (distributionPoints) distributionPoints.material.opacity = going2d ? 0 : 1;
+            function step(now) {
+                const raw = Math.min(1, (now - start) / duration), t = raw < .5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
+                const flat = going2d ? t : 1 - t;
+                setDimensionScale(1 - flat);
+                if (distributionPoints) distributionPoints.material.opacity = flat;
+                camera.position.lerpVectors(fromPosition, toPosition, t);
+                controls.target.lerpVectors(fromTarget, toTarget, t);
+                camera.up.lerpVectors(fromUp, toUp, t).normalize();
+                camera.lookAt(controls.target);
+                render();
+                if (raw < 1) requestAnimationFrame(step);
+                else {
+                    dimensionMode = nextMode;
+                    dimensionAnimating = false;
+                    controls.enabled = true;
+                    controls.enableRotate = !going2d;
+                    if (labelGroup) labelGroup.visible = !going2d;
+                    if (gridGroup) gridGroup.visible = !going2d;
+                    if (flatGridGroup) flatGridGroup.visible = going2d;
+                    if (flatLabelGroup) flatLabelGroup.visible = going2d;
+                    if (going2d) dimensionLayers().forEach(layer => { layer.visible = false });
+                    else {
+                        if (actualNormal) actualNormal.visible = !boundsOnlyActive;
+                        if (actualAbnormal) actualAbnormal.visible = !boundsOnlyActive;
+                        actualPointLayers.forEach(layer => { layer.visible = !boundsOnlyActive });
+                    }
+                    updateDimensionUi();
+                    updateDimensionStats();
+                    render();
+                }
+            }
+            requestAnimationFrame(step);
+        }
+        const buildThreeDimensionalScene = build;
+        build = function () {
+            buildThreeDimensionalScene();
+            distributionPoints = null;
+            if (!currentRows.length || !bounds) return;
+            buildDistributionPoints();
+            buildFlatAxes(standardFiltered());
+            applyDimensionState();
+            updateDimensionStats();
+            render();
+        };
+        function updateDimensionStats() {
+            const name = metadata.selectedOptions[0]?.textContent || "元数据";
+            document.getElementById("title").textContent = name + (dimensionMode === "2d" ? "点位分布" : "上下限");
+            if (dimensionMode === "2d") {
+                const abnormal = viewMode === "compare" ? currentRows.filter(d => isAbnormal(d, actualFor(d))).length : 0;
+                resultCount.textContent = viewMode === "compare"
+                    ? `点位：${currentRows.length.toLocaleString()} 条｜超限：${abnormal.toLocaleString()} 条`
+                    : `点位：${currentRows.length.toLocaleString()} 条`;
+            }
+        }
+        function sprite(text, color = "#64748b", size = 30, weight = 550) { const dpr = 4, c = document.createElement("canvas"), ctx = c.getContext("2d"), font = `${weight} ${size}px "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif`; ctx.font = font; const logicalW = Math.ceil(ctx.measureText(text).width) + 18, logicalH = size + 16; c.width = logicalW * dpr; c.height = logicalH * dpr; ctx.scale(dpr, dpr); ctx.font = font; ctx.fillStyle = color; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, logicalW / 2, logicalH / 2); const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.encoding = THREE.sRGBEncoding; const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }); const s = new THREE.Sprite(mat); s.scale.set(logicalW / size * 1.02, 1.02, 1); return s }
+        function addLabel(group, text, pos, scale = .7, color = "#64748b", weight = 500) { const isZeroTick = text === "0" && color === "#0f172a", labelColor = isZeroTick ? "#e11d48" : color, labelPos = isZeroTick ? new THREE.Vector3(xMin, -.62, 12) : pos, s = sprite(text, labelColor, 28, weight); s.position.copy(labelPos); s.scale.multiplyScalar(scale); group.add(s); return s }
+        function buildAxes(rows) { gridGroup = new THREE.Group(); labelGroup = new THREE.Group(); root.add(gridGroup, labelGroup); const gridMat = new THREE.LineBasicMaterial({ color: 0xd7dee8, transparent: true, opacity: .56 }), axisMat = new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: .9 }), pts = [], axisYMin = Math.min(0, zPosition(bounds.zmin)), axisYMax = Math.max(0, zPosition(bounds.zmax)); for (let i = 0; i <= 5; i++) { const x = xMin + i * (xMax - xMin) / 5; pts.push(x, 0, -12, x, 0, 12); const z = -12 + i * 4.8; pts.push(xMin, 0, z, xMax, 0, z) } for (let i = 1; i <= 5; i++) { const y = axisYMin + i * (axisYMax - axisYMin) / 5; if (Math.abs(y) < 1e-9) continue; pts.push(xMin, y, -12, xMax, y, -12, xMin, y, -12, xMin, y, 12) } const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); gridGroup.add(new THREE.LineSegments(g, gridMat)); const ag = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12), new THREE.Vector3(xMax + 1, 0, 12), new THREE.Vector3(xMin, 0, -12), new THREE.Vector3(xMin, 0, 13), new THREE.Vector3(xMin, axisYMin, 12), new THREE.Vector3(xMin, axisYMax, 12)]); gridGroup.add(new THREE.LineSegments(ag, axisMat)); const originCanvas = document.createElement("canvas"); originCanvas.width = 64; originCanvas.height = 64; const originContext = originCanvas.getContext("2d"); originContext.fillStyle = "#111827"; originContext.beginPath(); originContext.arc(32, 32, 30, 0, Math.PI * 2); originContext.fill(); const originTexture = new THREE.CanvasTexture(originCanvas), originGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12)]), originPoint = new THREE.Points(originGeometry, new THREE.PointsMaterial({ color: 0xffffff, map: originTexture, alphaTest: .5, transparent: true, size: 7, sizeAttenuation: false, depthTest: false, depthWrite: false })); originPoint.renderOrder = 20; gridGroup.add(originPoint); addLabel(labelGroup, "X：拉速", new THREE.Vector3(xMax + 1.6, -.75, 12.2), .52, "#1e293b", 650); addLabel(labelGroup, "Y：钢种＋宽度", new THREE.Vector3(xMin, -1.45, -13.5), .5, "#1e293b", 650); addLabel(labelGroup, "Z：上下限值", new THREE.Vector3(xMin - .7, axisYMax + 1.5, 12.2), .5, "#1e293b", 650); const actualSpeeds = [...new Set(rows.map(d => d.speed))].sort((a, b) => a - b), minorMin = Math.ceil(xDataMin * 100) / 100, minorMax = Math.floor(bounds.xmax * 100) / 100, minorSpeeds = Array.from({ length: Math.round((minorMax - minorMin) * 100) + 1 }, (_, i) => Number((minorMin + i / 100).toFixed(2))), labelMin = Math.ceil(xDataMin * 20) / 20, labelMax = Math.floor(bounds.xmax * 20) / 20, labelSpeeds = Array.from({ length: Math.round((labelMax - labelMin) * 20) + 1 }, (_, i) => Number((labelMin + i / 20).toFixed(2))), speedTickPts = [xMin, 0, 12, xMin, 0, 12.3]; const breakX = xMin + 1.1; speedTickPts.push(breakX - .18, -.06, 11.82, breakX + .02, .18, 12.18, breakX + .12, -.06, 11.82, breakX + .32, .18, 12.18); minorSpeeds.forEach(v => { const x = xPosition(v); speedTickPts.push(x, 0, 12, x, 0, 12.13) }); labelSpeeds.forEach(v => { const x = xPosition(v); if (Math.abs(v) > 1e-9) { const tick = addLabel(labelGroup, displaySpeed(v), new THREE.Vector3(x, -1.02, 12.65), .55, "#475569", 600); tick.material.rotation = Math.PI / 2 } speedTickPts.push(x, 0, 12, x, 0, 12.3) }); const speedTickGeo = new THREE.BufferGeometry(); speedTickGeo.setAttribute("position", new THREE.Float32BufferAttribute(speedTickPts, 3)); gridGroup.add(new THREE.LineSegments(speedTickGeo, new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: .65 }))); const zRange = bounds.zmax - bounds.zmin, zTicks = []; for (let i = 0; i < 5; i++) { const t = i / 4, v = bounds.zmin + t * zRange; zTicks.push({ v, y: zPosition(v), zero: false }) } if (bounds.zmin <= 0 && bounds.zmax >= 0) { const zeroIdx = zTicks.findIndex(t => Math.abs(t.v) <= zRange * .04); if (zeroIdx >= 0) { zTicks[zeroIdx].v = 0; zTicks[zeroIdx].zero = true } else { zTicks.push({ v: 0, y: 0, zero: true }) } } zTicks.forEach(t => { addLabel(labelGroup, t.zero ? "0" : Number(t.v.toPrecision(4)).toString(), new THREE.Vector3(t.zero ? xMin : xMin - .72, t.y, t.zero ? 12 : 12.35), t.zero ? .62 : .58, t.zero ? "#0f172a" : "#475569", t.zero ? 700 : 600) }); const ys = [...new Set(rows.map(d => d.y))].sort((a, b) => a - b), count = Math.min(6, ys.length), chosen = []; for (let i = 0; i < count; i++) { const idx = count === 1 ? 0 : Math.round(i * (ys.length - 1) / (count - 1)); if (!chosen.includes(ys[idx])) chosen.push(ys[idx]) } chosen.forEach(v => { const d = rows.find(r => r.y === v), z = yPosition(v); addLabel(labelGroup, d.yLabel.replace("｜", " · "), new THREE.Vector3(xMin - .62, -.68, z), .52, "#475569", 600) }) } function build() { document.getElementById("loading").style.display = "flex"; disposeObject(root); actualPointLayers = []; currentRows = filtered(); const axisRows = standardFiltered(); const positiveSpeeds = axisRows.map(d => Number(d.speed)).filter(v => v > 0); xDataMin = positiveSpeeds.length ? Math.min(...positiveSpeeds) : 0; xDataMax = Math.max(...axisRows.map(d => Number(d.speed))); ySlots = [...new Set(axisRows.map(d => d.y))].sort((a, b) => a - b); updateStats(); detail.style.display = "none"; if (!currentRows.length || !axisRows.length) { document.getElementById("loading").textContent = "没有符合条件的数据"; return } bounds = { xmin: Math.min(0, ...axisRows.map(d => d.speed)), xmax: Math.max(...axisRows.map(d => d.speed)), ymin: Math.min(...axisRows.map(d => d.y)), ymax: Math.max(...axisRows.map(d => d.y)), zmin: Math.min(0, ...axisRows.map(d => d.lower)), zmax: Math.max(...axisRows.map(d => d.upper)) }; if (bounds.zmin === bounds.zmax) bounds.zmax = bounds.zmin + 1; const linePos = [], lowPos = [], upPos = []; currentRows.forEach(d => { const x = xPosition(d.speed), z = yPosition(d.y), lo = zPosition(d.lower), hi = zPosition(d.upper); linePos.push(x, lo, z, x, hi, z); lowPos.push(x, lo, z); upPos.push(x, hi, z) }); const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePos, 3)); segments = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: blue, transparent: true, opacity: 1 })); segments.userData.kind = "line"; root.add(segments); const lowGeo = new THREE.BufferGeometry(); lowGeo.setAttribute("position", new THREE.Float32BufferAttribute(lowPos, 3)); lowerPoints = new THREE.Points(lowGeo, new THREE.PointsMaterial({ color: blue, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); lowerPoints.userData.kind = "lower"; root.add(lowerPoints); const upGeo = new THREE.BufferGeometry(); upGeo.setAttribute("position", new THREE.Float32BufferAttribute(upPos, 3)); upperPoints = new THREE.Points(upGeo, new THREE.PointsMaterial({ color: red, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); upperPoints.userData.kind = "upper"; root.add(upperPoints); const normalPos = [], abnormalPos = [], normalRows = [], abnormalRows = []; if (viewMode === "compare") currentRows.forEach(d => { const a = actualFor(d); if (!a) return; const x = xPosition(d.speed), z = yPosition(d.y), abnormal = isAbnormal(d, a), target = abnormal ? abnormalPos : normalPos, targetRows = abnormal ? abnormalRows : normalRows; target.push(x, zPosition(a.lower), z, x, zPosition(a.upper), z); targetRows.push(d) }); function addActualLayer(positions, rows, color, kind) { if (!positions.length) return null; const geometry = new THREE.BufferGeometry(); geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const layer = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 })); layer.userData = { kind, rows }; root.add(layer); const pointGeometry = new THREE.BufferGeometry(); pointGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const pointLayer = new THREE.Points(pointGeometry, new THREE.PointsMaterial({ color, size: 4, sizeAttenuation: false })); pointLayer.visible = !boundsOnlyActive; actualPointLayers.push(pointLayer); root.add(pointLayer); layer.visible = !boundsOnlyActive; return layer } actualNormal = addActualLayer(normalPos, normalRows, 0x16a34a, "actualNormal"); actualAbnormal = addActualLayer(abnormalPos, abnormalRows, 0xdc2626, "actualAbnormal"); const hg = new THREE.BufferGeometry(); hg.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); highlightLine = new THREE.LineSegments(hg, new THREE.LineBasicMaterial({ color: orange, linewidth: 3, transparent: true, opacity: 0 })); root.add(highlightLine); const hp = new THREE.BufferGeometry(); hp.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); hp.setAttribute("color", new THREE.Float32BufferAttribute([blue.r, blue.g, blue.b, red.r, red.g, red.b], 3)); const dotCanvas = document.createElement("canvas"); dotCanvas.width = 64; dotCanvas.height = 64; const dotContext = dotCanvas.getContext("2d"); dotContext.fillStyle = "#ffffff"; dotContext.beginPath(); dotContext.arc(32, 32, 30, 0, Math.PI * 2); dotContext.fill(); const dotTexture = new THREE.CanvasTexture(dotCanvas); highlightPoints = new THREE.Points(hp, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, map: dotTexture, alphaTest: .1, depthWrite: false, transparent: true, opacity: 0 })); root.add(highlightPoints); buildAxes(axisRows); document.getElementById("loading").style.display = "none"; render() }
+        function updateStats() { document.getElementById("title").textContent = (metadata.selectedOptions[0]?.textContent || "元数据") + "上下限"; if (!timeComparisonVisible()) resultCount.textContent = `上下限标准：${currentRows.length.toLocaleString()} 条`; else { const abnormal = currentRows.filter(d => isAbnormal(d, actualFor(d))); resultCount.textContent = `对比组合：${currentRows.length.toLocaleString()} 条｜异常：${abnormal.length.toLocaleString()} 条` } } function selectRow(i, source = "gold") { const d = currentRows[i]; if (!d) return; selectedRowData = d; segments.material.opacity = .18; lowerPoints.material.opacity = .22; upperPoints.material.opacity = .22; if (actualNormal) actualNormal.material.opacity = .2; if (actualAbnormal) actualAbnormal.material.opacity = .2; const selectedColor = source === "actualAbnormal" ? 0xdc2626 : source === "actualNormal" ? 0x16a34a : 0x2563eb; highlightLine.material.color.setHex(selectedColor); const selectedRgb = new THREE.Color(selectedColor); highlightPoints.geometry.attributes.color.array.set([selectedRgb.r, selectedRgb.g, selectedRgb.b, selectedRgb.r, selectedRgb.g, selectedRgb.b]); highlightPoints.geometry.attributes.color.needsUpdate = true; const x = xPosition(d.speed), z = yPosition(d.y), lo = zPosition(d.lower), hi = zPosition(d.upper), arr = [x, lo, z, x, hi, z], sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; highlightLine.geometry.attributes.position.array.set(arr); highlightLine.geometry.attributes.position.needsUpdate = true; highlightLine.material.opacity = 1; highlightPoints.geometry.attributes.position.array.set(arr); highlightPoints.geometry.attributes.position.needsUpdate = true; highlightPoints.material.opacity = 1; detail.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}${drillButtonHtml()}`; detail.style.display = "block"; render() }
+        function selectRow(i, source = "gold") {
+            const d = currentRows[i];
+            if (!d) return;
+            selectedRowData = d;
+            segments.material.opacity = .12;
+            lowerPoints.material.opacity = .14;
+            upperPoints.material.opacity = .14;
+            if (actualNormal) actualNormal.material.opacity = .12;
+            if (actualAbnormal) actualAbnormal.material.opacity = .12;
+
+            const actual = source.startsWith("actual") ? actualFor(d) : null;
+            const selectedRange = actual || { lower: d.lower, upper: d.upper };
+            const selectedColor = source === "actualAbnormal" ? 0xdc2626 : source === "actualNormal" ? 0x16a34a : 0x2563eb;
+            const selectedRgb = new THREE.Color(selectedColor);
+            highlightLine.material.color.setHex(selectedColor);
+            highlightPoints.geometry.attributes.color.array.set([
+                selectedRgb.r, selectedRgb.g, selectedRgb.b,
+                selectedRgb.r, selectedRgb.g, selectedRgb.b,
+            ]);
+            highlightPoints.geometry.attributes.color.needsUpdate = true;
+
+            const x = xPosition(d.speed), z = yPosition(d.y);
+            const lo = zPosition(selectedRange.lower), hi = zPosition(selectedRange.upper);
+            const positions = [x, lo, z, x, hi, z];
+            highlightLine.geometry.attributes.position.array.set(positions);
+            highlightLine.geometry.attributes.position.needsUpdate = true;
+            highlightLine.material.opacity = 0;
+            highlightPoints.geometry.attributes.position.array.set(positions);
+            highlightPoints.geometry.attributes.position.needsUpdate = true;
+            highlightPoints.material.opacity = 0;
+
+            const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`;
+            detail.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}${drillButtonHtml()}`;
+            detail.style.display = "block";
+            render();
+        }
+        function clearSelection() { selectedRowData = null; if (!segments) return; segments.material.opacity = 1; lowerPoints.material.opacity = 1; upperPoints.material.opacity = 1; if (actualNormal) actualNormal.material.opacity = 1; if (actualAbnormal) actualAbnormal.material.opacity = 1; highlightLine.material.opacity = 0; highlightPoints.material.opacity = 0; detail.style.display = "none"; render() }
+        let selectedActualLine = null, selectedActualPoints = null, selectedStandardBar = null, selectedActualBar = null;
+        function createSelectionBar(color, renderOrder) {
+            const bar = new THREE.Mesh(
+                new THREE.CylinderGeometry(.055, .055, 1, 10),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthTest: false, depthWrite: false })
+            );
+            bar.renderOrder = renderOrder;
+            root.add(bar);
+            return bar;
+        }
+        function ensureSelectionBars() {
+            if (selectedStandardBar?.parent !== root) selectedStandardBar = createSelectionBar(0x2563eb, 33);
+            if (selectedActualBar?.parent !== root) selectedActualBar = createSelectionBar(0x16a34a, 34);
+        }
+        function setSelectionBar(bar, positions, color, visible = true) {
+            if (!bar) return;
+            if (!visible) { bar.material.opacity = 0; return }
+            const y1 = positions[1], y2 = positions[4];
+            bar.position.set(positions[0], (y1 + y2) / 2, positions[2]);
+            bar.scale.set(1, Math.max(Math.abs(y2 - y1), .001), 1);
+            bar.material.color.setHex(color);
+            bar.material.opacity = 1;
+        }
+        function ensureSelectedActualOverlay() {
+            if (selectedActualLine?.parent === root && selectedActualPoints?.parent === root) return;
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+            selectedActualLine = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0x16a34a, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+            const pointGeometry = new THREE.BufferGeometry();
+            pointGeometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+            selectedActualPoints = new THREE.Points(pointGeometry, new THREE.PointsMaterial({ color: 0x16a34a, size: 5, sizeAttenuation: false, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+            selectedActualLine.renderOrder = 31;
+            selectedActualPoints.renderOrder = 32;
+            root.add(selectedActualLine, selectedActualPoints);
+        }
+        function selectRow(i) {
+            const d = currentRows[i];
+            if (!d) return;
+            selectedRowData = d;
+
+            segments.material.opacity = .14;
+            lowerPoints.material.opacity = .18;
+            upperPoints.material.opacity = .18;
+            if (actualNormal) actualNormal.material.opacity = .14;
+            if (actualAbnormal) actualAbnormal.material.opacity = .14;
+            actualPointLayers.forEach(layer => { layer.material.transparent = true; layer.material.opacity = .18 });
+            if (distributionPoints) distributionPoints.material.opacity = dimensionMode === "2d" ? .38 : 0;
+
+            const actual = timeComparisonVisible() ? actualFor(d) : null;
+            const x = xPosition(d.speed), z = yPosition(d.y);
+            const standardPositions = [x, zPosition(d.lower), z, x, zPosition(d.upper), z];
+            highlightLine.material.depthTest = false;
+            highlightLine.material.depthWrite = false;
+            highlightPoints.material.depthTest = false;
+            highlightPoints.material.depthWrite = false;
+            highlightLine.renderOrder = 29;
+            highlightPoints.renderOrder = 30;
+            highlightLine.material.color.setHex(0x2563eb);
+            highlightLine.geometry.attributes.position.array.set(standardPositions);
+            highlightLine.geometry.attributes.position.needsUpdate = true;
+            highlightLine.material.opacity = 0;
+            const standardRgb = new THREE.Color(0x2563eb);
+            highlightPoints.geometry.attributes.color.array.set([
+                standardRgb.r, standardRgb.g, standardRgb.b,
+                standardRgb.r, standardRgb.g, standardRgb.b,
+            ]);
+            highlightPoints.geometry.attributes.color.needsUpdate = true;
+            highlightPoints.geometry.attributes.position.array.set(standardPositions);
+            highlightPoints.geometry.attributes.position.needsUpdate = true;
+            highlightPoints.material.opacity = 0;
+
+            ensureSelectedActualOverlay();
+            ensureSelectionBars();
+            setSelectionBar(selectedStandardBar, [], 0, false);
+            if (actual) {
+                const actualColor = isAbnormal(d, actual) ? 0xdc2626 : 0x16a34a;
+                const actualPositions = [x, zPosition(actual.lower), z, x, zPosition(actual.upper), z];
+                selectedActualLine.material.color.setHex(actualColor);
+                selectedActualPoints.material.color.setHex(actualColor);
+                selectedActualLine.geometry.attributes.position.array.set(actualPositions);
+                selectedActualLine.geometry.attributes.position.needsUpdate = true;
+                selectedActualPoints.geometry.attributes.position.array.set(actualPositions);
+                selectedActualPoints.geometry.attributes.position.needsUpdate = true;
+                selectedActualLine.material.opacity = 0;
+                selectedActualPoints.material.opacity = 0;
+                setSelectionBar(selectedActualBar, [], 0, false);
+            } else {
+                selectedActualLine.material.opacity = 0;
+                selectedActualPoints.material.opacity = 0;
+                setSelectionBar(selectedActualBar, [], 0, false);
+            }
+
+            selectionOverlayData = { d, actual };
+            const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`;
+            const pointStatus = viewMode === "compare"
+                ? `<br><b style="color:${isAbnormal(d, actual) ? '#dc2626' : '#15803d'}">${isAbnormal(d, actual) ? '超限点位' : '未超限点位'}</b>`
+                : "";
+            detail.innerHTML = dimensionMode === "2d"
+                ? `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}${pointStatus}${drillButtonHtml()}`
+                : `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}${drillButtonHtml()}`;
+            detail.style.display = "block";
+            render();
+        }
+        function clearSelection() {
+            selectedRowData = null;
+            selectionOverlayData = null;
+            if (!segments) return;
+            segments.material.opacity = 1;
+            lowerPoints.material.opacity = 1;
+            upperPoints.material.opacity = 1;
+            if (actualNormal) actualNormal.material.opacity = 1;
+            if (actualAbnormal) actualAbnormal.material.opacity = 1;
+            actualPointLayers.forEach(layer => { layer.material.opacity = 1 });
+            if (distributionPoints) distributionPoints.material.opacity = dimensionMode === "2d" ? 1 : 0;
+            highlightLine.material.opacity = 0;
+            highlightPoints.material.opacity = 0;
+            if (selectedActualLine) selectedActualLine.material.opacity = 0;
+            if (selectedActualPoints) selectedActualPoints.material.opacity = 0;
+            if (selectedStandardBar) selectedStandardBar.material.opacity = 0;
+            if (selectedActualBar) selectedActualBar.material.opacity = 0;
+            detail.style.display = "none";
+            render();
+        }
+        function pointToSegmentDistance(px, py, ax, ay, bx, by) {
+            const dx = bx - ax, dy = by - ay;
+            if (dx === 0 && dy === 0) return Math.hypot(px - ax, py - ay);
+            const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+            return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+        }
+        function screenRangeDistance(e, d, range, rect) {
+            const x = xPosition(d.speed), z = yPosition(d.y);
+            const low = new THREE.Vector3(x, zPosition(range.lower), z).project(camera);
+            const high = new THREE.Vector3(x, zPosition(range.upper), z).project(camera);
+            if (low.z < -1 || low.z > 1 || high.z < -1 || high.z > 1) return Infinity;
+            const ax = rect.left + (low.x + 1) * rect.width / 2;
+            const ay = rect.top + (1 - low.y) * rect.height / 2;
+            const bx = rect.left + (high.x + 1) * rect.width / 2;
+            const by = rect.top + (1 - high.y) * rect.height / 2;
+            return pointToSegmentDistance(e.clientX, e.clientY, ax, ay, bx, by);
+        }
+        function screenDistributionDistance(e, d, rect) {
+            const projected = new THREE.Vector3(xPosition(d.speed), .12, yPosition(d.y)).project(camera);
+            if (projected.z < -1 || projected.z > 1) return Infinity;
+            const x = rect.left + (projected.x + 1) * rect.width / 2;
+            const y = rect.top + (1 - projected.y) * rect.height / 2;
+            return Math.hypot(e.clientX - x, e.clientY - y);
+        }
+        function rowsAt(e) {
+            if (!currentRows.length || !bounds) return [];
+            const rect = canvas.getBoundingClientRect(), maxDistance = 11, candidates = [];
+            currentRows.forEach(d => {
+                let distance = dimensionMode === "2d"
+                    ? screenDistributionDistance(e, d, rect)
+                    : screenRangeDistance(e, d, { lower: d.lower, upper: d.upper }, rect);
+                if (dimensionMode !== "2d" && timeComparisonVisible()) {
+                    const actual = actualFor(d);
+                    if (actual) distance = Math.min(distance, screenRangeDistance(e, d, actual, rect));
+                }
+                if (distance <= maxDistance) candidates.push({ d, source: "gold", distance });
+            });
+            candidates.sort((a, b) => a.distance - b.distance);
+            return candidates;
+        }
+        function rowAt(e) { return rowsAt(e)[0] || null }
+        let lastPick = null;
+        function pick(e) {
+            const candidates = rowsAt(e);
+            if (!candidates.length) { lastPick = null; return }
+            const keys = candidates.map(hit => conditionKey(hit.d.metadataCode, hit.d.steel, hit.d.width, hit.d.speed)).join(";");
+            const samePlace = lastPick && Math.hypot(e.clientX - lastPick.x, e.clientY - lastPick.y) <= 8 && lastPick.keys === keys;
+            const index = samePlace ? (lastPick.index + 1) % candidates.length : 0;
+            lastPick = { x: e.clientX, y: e.clientY, keys, index };
+            const hit = candidates[index];
+            selectRow(currentRows.indexOf(hit.d), hit.source);
+        }
+        function showTip(e, d) { if (!d) { tooltip.style.display = "none"; return } const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; tooltip.innerHTML = `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}`; const r = view.getBoundingClientRect(), maxX = r.width - 310, maxY = r.height - 90; tooltip.style.left = Math.max(0, Math.min(maxX, e.clientX - r.left)) + "px"; tooltip.style.top = Math.max(0, Math.min(maxY, e.clientY - r.top)) + "px"; tooltip.style.display = "block" }
+        let hoverFrame = 0; canvas.addEventListener("pointerdown", e => { tooltip.style.display = "none"; downAt = { x: e.clientX, y: e.clientY, t: performance.now() } }); canvas.addEventListener("pointerup", e => { if (!downAt) return; const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y); if (moved < 5 && performance.now() - downAt.t < 450) pick(e); downAt = null }); canvas.addEventListener("pointermove", e => { if (downAt || hoverFrame) return; const x = e.clientX, y = e.clientY; hoverFrame = requestAnimationFrame(() => { hoverFrame = 0; (() => { const hit = rowAt({ clientX: x, clientY: y }); showTip({ clientX: x, clientY: y }, hit ? hit.d : null) })() }) }); canvas.addEventListener("pointerleave", () => { tooltip.style.display = "none" }); canvas.addEventListener("dblclick", e => { e.preventDefault(); tooltip.style.display = "none"; clearSelection() });
+        let selectionGestureStart = null, suppressSelectionClick = false;
+        canvas.addEventListener("pointerdown", e => {
+            selectionGestureStart = { x: e.clientX, y: e.clientY };
+        }, true);
+        canvas.addEventListener("pointerup", e => {
+            if (!selectionGestureStart) return;
+            const moved = Math.hypot(e.clientX - selectionGestureStart.x, e.clientY - selectionGestureStart.y);
+            suppressSelectionClick = moved >= 5;
+            selectionGestureStart = null;
+            if (suppressSelectionClick) setTimeout(() => { suppressSelectionClick = false }, 0);
+        }, true);
+        canvas.addEventListener("pointercancel", () => {
+            selectionGestureStart = null;
+            suppressSelectionClick = false;
+        }, true);
+        canvas.addEventListener("click", e => {
+            if (suppressSelectionClick) {
+                suppressSelectionClick = false;
+                e.stopImmediatePropagation();
+            }
+        }, true);
+        canvas.addEventListener("click", e => { if (!rowAt(e)) { tooltip.style.display = "none"; clearSelection() } });
+        const drilldown = document.getElementById("drilldown"), drillTitle = document.getElementById("drillTitle"), drillScene = document.getElementById("drillScene"), drillSummary = document.getElementById("drillSummary"), drillWrap = document.getElementById("drillWrap"), drillSvg = document.getElementById("drillSvg"), drillTip = document.getElementById("drillTip"), drillTable = document.getElementById("drillTable"), drillTableBtn = document.getElementById("drillTableBtn"), drillClose = document.getElementById("drillClose");
+        let selectedRowData = null, drillDays = [], drillGeom = null;
+        const drillBad = (x, d) => x.l < d.lower || x.u > d.upper, fmtVal = v => Number(v.toPrecision(6)).toString();
+        function dailyRowsFor(d) { return dailyRecords.filter(r => r.c === d.metadataCode && r.s === d.steel && Number(r.w) === Number(d.width) && Number(r.v).toFixed(2) === Number(d.speed).toFixed(2) && r.d >= selectedStartDate && r.d <= selectedEndDate).sort((a, b) => a.d < b.d ? -1 : 1) }
+        function niceTicks(min, max, count) { const span = (max - min) || 1, raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw))), norm = raw / mag, step = (norm >= 5 ? 10 : norm >= 2 ? 5 : norm >= 1 ? 2 : 1) * mag, ticks = []; for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-6; v += step) ticks.push(v); return { ticks, step } }
+        const fmtTick = (v, step) => v.toLocaleString("zh-CN", { maximumFractionDigits: step >= 1 ? 0 : step >= .1 ? 1 : step >= .01 ? 2 : 3 });
+        function dateTicks(minT, maxT) {
+            const span = (maxT - minT) / 864e5; let fmt, ticks = [];
+            if (span <= 16) { const step = Math.max(1, Math.ceil(span / 8)); for (let t = Math.ceil(minT / 864e5) * 864e5; t <= maxT; t += step * 864e5) ticks.push(t); fmt = t => new Date(t).toISOString().slice(5, 10) }
+            else if (span <= 130) { for (let t = Math.ceil(minT / (7 * 864e5)) * 7 * 864e5; t <= maxT; t += 7 * 864e5) ticks.push(t); fmt = t => new Date(t).toISOString().slice(5, 10) }
+            else { const month = Math.max(1, Math.ceil(span / 30 / 8)); let dt = new Date(minT); dt = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 1)); while (+dt <= maxT) { ticks.push(+dt); dt.setUTCMonth(dt.getUTCMonth() + month) } fmt = t => new Date(t).toISOString().slice(0, 7) }
+            return { ticks, fmt };
+        }
+        const dotMark = (x, y, big) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${big ? 4.5 : 3.5}" fill="#16a34a" stroke="#fff" stroke-width="1.5"/>`;
+        const crossMark = (x, y, big) => { const a = big ? 5 : 4.2, x1 = (x - a).toFixed(1), x2 = (x + a).toFixed(1), y1 = (y - a).toFixed(1), y2 = (y + a).toFixed(1), w = big ? 2.5 : 2, dd = `M ${x1} ${y1} L ${x2} ${y2} M ${x1} ${y2} L ${x2} ${y1}`; return `<path d="${dd}" stroke="#fff" stroke-width="${w + 2.5}" stroke-linecap="round" fill="none" opacity=".9"/><path d="${dd}" stroke="#dc2626" stroke-width="${w}" stroke-linecap="round" fill="none"/>` };
+        function renderDrillChart() {
+            const d = selectedRowData;
+            if (!d || !drillDays.length) { drillSvg.setAttribute("viewBox", "0 0 600 320"); drillSvg.innerHTML = `<text x="300" y="160" text-anchor="middle" font-size="14" fill="#64748b">所选时间范围内该组合无逐日实际数据</text>`; drillGeom = null; return }
+            const W = Math.max(drillWrap.clientWidth, 520), H = Math.max(drillWrap.clientHeight, 320), M = { t: 16, r: 16, b: 30, l: 64 }, pw = W - M.l - M.r, ph = H - M.t - M.b;
+            const days = drillDays.map(x => ({ ...x, t: Date.parse(x.d + "T00:00:00Z") }));
+            const tMin = days[0].t, tMax = days[days.length - 1].t, padT = Math.max((tMax - tMin) * .02, 432e5);
+            const vals = [d.lower, d.upper].concat(...days.map(x => [x.l, x.u])); let yLo = Math.min(...vals), yHi = Math.max(...vals); const padY = ((yHi - yLo) || Math.abs(yHi) || 1) * .09; yLo -= padY; yHi += padY;
+            const X = t => M.l + (t - tMin + padT) / (tMax - tMin + 2 * padT) * pw, Y = v => M.t + (1 - (v - yLo) / (yHi - yLo)) * ph;
+            const yt = niceTicks(yLo, yHi, 5), xt = dateTicks(tMin, tMax);
+            let s = "";
+            yt.ticks.forEach(v => { s += `<line x1="${M.l}" y1="${Y(v).toFixed(1)}" x2="${W - M.r}" y2="${Y(v).toFixed(1)}" stroke="#e6ebf2"/><text x="${M.l - 8}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#64748b">${fmtTick(v, yt.step)}</text>` });
+            xt.ticks.forEach(t => { s += `<line x1="${X(t).toFixed(1)}" y1="${M.t}" x2="${X(t).toFixed(1)}" y2="${M.t + ph}" stroke="#eef2f7"/><text x="${X(t).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#64748b">${xt.fmt(t)}</text>` });
+            s += `<rect x="${M.l}" y="${Y(d.upper).toFixed(1)}" width="${pw.toFixed(1)}" height="${Math.max(0, Y(d.lower) - Y(d.upper)).toFixed(1)}" fill="rgba(71,85,105,.07)"/>`;
+            s += `<line x1="${M.l}" x2="${W - M.r}" y1="${Y(d.upper).toFixed(1)}" y2="${Y(d.upper).toFixed(1)}" stroke="#475569" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+            s += `<line x1="${M.l}" x2="${W - M.r}" y1="${Y(d.lower).toFixed(1)}" y2="${Y(d.lower).toFixed(1)}" stroke="#475569" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+            const upTop = Y(d.upper) - M.t > 20, loBottom = M.t + ph - Y(d.lower) > 20;
+            s += `<text x="${W - M.r - 4}" y="${(Y(d.upper) + (upTop ? -6 : 14)).toFixed(1)}" text-anchor="end" font-size="11" font-weight="600" fill="#475569">上限标准 ${fmtVal(d.upper)}</text>`;
+            s += `<text x="${W - M.r - 4}" y="${(Y(d.lower) + (loBottom ? 15 : -6)).toFixed(1)}" text-anchor="end" font-size="11" font-weight="600" fill="#475569">下限标准 ${fmtVal(d.lower)}</text>`;
+            const pxPerDay = pw / Math.max((tMax - tMin) / 864e5, 1);
+            days.forEach(x => { const cx = X(x.t).toFixed(1), bad = drillBad(x, d); s += `<line x1="${cx}" x2="${cx}" y1="${Y(x.u).toFixed(1)}" y2="${Y(x.l).toFixed(1)}" stroke="${bad ? "#dc2626" : "#16a34a"}" stroke-width="2" stroke-linecap="round"/>` });
+            days.forEach(x => { const cx = X(x.t), bad = drillBad(x, d); if (bad) s += crossMark(cx, Y(x.u), false) + crossMark(cx, Y(x.l), false); else if (pxPerDay >= 7) s += dotMark(cx, Y(x.u), false) + dotMark(cx, Y(x.l), false) });
+            s += `<line id="drillCross" x1="0" x2="0" y1="${M.t}" y2="${M.t + ph}" stroke="#94a3b8" opacity="0"/>`;
+            s += `<g id="drillFocus"></g>`;
+            drillGeom = { W, M, X, Y, days, d, tMin, tMax };
+            drillSvg.setAttribute("viewBox", `0 0 ${W} ${H}`); drillSvg.innerHTML = s; drillTip.style.display = "none";
+        }
+        function buildDrillTable(d) { drillTable.innerHTML = `<table><thead><tr><th>日期</th><th>实际最小</th><th>实际最大</th><th>数据量</th><th>与上下限标准</th></tr></thead><tbody>` + drillDays.map(x => { const bad = drillBad(x, d); return `<tr><td>${x.d}</td><td>${fmtVal(x.l)}</td><td>${fmtVal(x.u)}</td><td>${x.n.toLocaleString()}</td><td class="${bad ? "status-bad" : "status-ok"}">${bad ? "✗ 超出" : "✓ 正常"}</td></tr>` }).join("") + `</tbody></table>` }
+        function openDrilldown(d) {
+            if (!d) return; selectedRowData = d; drillDays = dailyRowsFor(d);
+            const bad = drillDays.filter(x => drillBad(x, d)).length;
+            drillTitle.textContent = d.metadata;
+            drillScene.textContent = `场景 ${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode} · 上下限标准 ${fmtVal(d.lower)} ~ ${fmtVal(d.upper)} · ${selectedStartDate} 至 ${selectedEndDate}`;
+            drillSummary.innerHTML = drillDays.length ? `共 <b>${drillDays.length}</b> 天有数据 · <span class="${bad ? "status-bad" : "status-ok"}">${bad ? "✗" : "✓"} ${bad} 天超标</span>` : "该时间范围内无实际数据";
+            drillClose.textContent = dimensionMode === "2d" ? "← 返回点位分布" : "← 返回三维视图";
+            buildDrillTable(d); drillTable.classList.remove("show"); drillTableBtn.textContent = "显示数据表"; drillTip.style.display = "none";
+            drilldown.classList.add("open"); tooltip.style.display = "none";
+            requestAnimationFrame(() => requestAnimationFrame(renderDrillChart));
+        }
+        function closeDrilldown() { drilldown.classList.remove("open"); drillTip.style.display = "none"; drillGeom = null }
+        drillSvg.addEventListener("pointermove", e => {
+            if (!drillGeom) return;
+            const r = drillSvg.getBoundingClientRect(), g = drillGeom, px = (e.clientX - r.left) * g.W / r.width;
+            let best = 0, bd = Infinity; g.days.forEach((x, i) => { const dd = Math.abs(g.X(x.t) - px); if (dd < bd) { bd = dd; best = i } });
+            const x = g.days[best], cx = g.X(x.t).toFixed(1), bad = drillBad(x, g.d), cross = document.getElementById("drillCross"), focus = document.getElementById("drillFocus");
+            if (!cross || !focus) return;
+            cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("opacity", ".7"); focus.setAttribute("opacity", "1");
+            focus.innerHTML = `<line x1="${cx}" x2="${cx}" y1="${g.Y(x.u).toFixed(1)}" y2="${g.Y(x.l).toFixed(1)}" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".85"/><line x1="${cx}" x2="${cx}" y1="${g.Y(x.u).toFixed(1)}" y2="${g.Y(x.l).toFixed(1)}" stroke="${bad ? "#dc2626" : "#16a34a"}" stroke-width="3.5" stroke-linecap="round"/>` + (bad ? crossMark(g.X(x.t), g.Y(x.u), true) + crossMark(g.X(x.t), g.Y(x.l), true) : dotMark(g.X(x.t), g.Y(x.u), true) + dotMark(g.X(x.t), g.Y(x.l), true));
+            const overUp = x.u - g.d.upper, underLo = g.d.lower - x.l, why = overUp > 0 && underLo > 0 ? `上限超 +${fmtVal(overUp)}，下限超 −${fmtVal(underLo)}` : overUp > 0 ? `上限超出 +${fmtVal(overUp)}` : underLo > 0 ? `下限超出 −${fmtVal(underLo)}` : "";
+            drillTip.innerHTML = `<b>${x.d}</b><br><span class="muted">实际最小</span>　<b>${fmtVal(x.l)}</b><br><span class="muted">实际最大</span>　<b>${fmtVal(x.u)}</b><br><span class="muted">数据量</span>　${x.n.toLocaleString()}<br><b style="color:${bad ? "#f87171" : "#4ade80"}">${bad ? "✗ 超出上下限标准" + (why ? "（" + why + "）" : "") : "✓ 位于上下限标准内"}</b>`;
+            const wr = drillWrap.getBoundingClientRect(); let tx = e.clientX - wr.left + 14, ty = e.clientY - wr.top + 14; if (tx > wr.width - 250) tx -= 264; if (ty > wr.height - 140) ty -= 154;
+            drillTip.style.left = Math.max(0, tx) + "px"; drillTip.style.top = Math.max(0, ty) + "px"; drillTip.style.display = "block";
+        });
+        drillSvg.addEventListener("pointerleave", () => { drillTip.style.display = "none"; const c = document.getElementById("drillCross"), f = document.getElementById("drillFocus"); if (c) c.setAttribute("opacity", "0"); if (f) { f.setAttribute("opacity", "0"); f.innerHTML = "" } });
+        drillClose.onclick = closeDrilldown;
+        drillTableBtn.onclick = () => { const show = drillTable.classList.toggle("show"); drillTableBtn.textContent = show ? "隐藏数据表" : "显示数据表" };
+        async function openSelectedDrilldown() {
+            if (!selectedRowData) return;
+            const start = startDate.value, end = endDate.value, days = inclusiveDays(start, end);
+            if (!start || !end || end < start) { dateStatus.textContent = "结束日期不能早于开始日期"; dateStatus.classList.add("error"); return }
+            if (days < 7 || days > 365) { dateStatus.textContent = `请选择7～365天，当前${days}天`; dateStatus.classList.add("error"); return }
+            const selected = selectedRowData;
+            if (selectedStartDate !== start || selectedEndDate !== end || !dailyRecords.length) {
+                dateStatus.textContent = "正在读取逐日上下限…"; dateStatus.classList.remove("error");
+                try {
+                    dailyRecords = await fetchJson(`${API_BASE}/daily?code=${encodeURIComponent(metadata.value)}&start=${start}&end=${end}`);
+                    selectedStartDate = start; selectedEndDate = end;
+                    dateStatus.textContent = `已读取逐日数据：${start} 至 ${end}（${days}天）`;
+                } catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error"); return }
+            }
+            openDrilldown(selected);
+        }
+        detail.addEventListener("click", e => { if (e.target.closest("[data-drill]")) openSelectedDrilldown() });
+        window.addEventListener("keydown", e => { if (e.key === "Escape") closeDrilldown() });
+        function resetCameraView() { camera.position.set(31, 18, 29); controls.target.set(0, 5.2, 0); controls.update(); render() } function setBoundsOnly(active) { boundsOnlyActive = active; if (actualNormal) actualNormal.visible = !active; if (actualAbnormal) actualAbnormal.visible = !active; actualPointLayers.forEach(layer => { layer.visible = !active }); if (selectedActualLine) selectedActualLine.material.opacity = 0; if (selectedActualPoints) selectedActualPoints.material.opacity = 0; document.getElementById("actualNormalLegend").style.display = active ? "none" : ""; document.getElementById("actualAbnormalLegend").style.display = active ? "none" : ""; document.getElementById("selectionLegendText").textContent = active ? "单击突出所选标准范围" : "单击突出所选标准与实际范围"; boundsOnlyReset.textContent = active ? "恢复时间对比" : "复位只看上下限"; clearSelection(); updateStats(); render() } function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); render(); if (drilldown.classList.contains("open")) renderDrillChart() } function render() { renderer.render(scene, camera) } function animate() { requestAnimationFrame(animate); if (controls.update()) render() } controls.addEventListener("change", render); window.addEventListener("resize", resize);
+        function render() {
+            const comparingTime = viewMode === "compare";
+            if (upperPoints) upperPoints.material.color.setHex(comparingTime ? 0x2563eb : 0xe11d48);
+            const upperLegendDot = document.getElementById("standardUpperLegendDot");
+            if (upperLegendDot) upperLegendDot.style.background = comparingTime ? "#2563eb" : "#e11d48";
+            renderer.render(scene, camera);
+            updateSelectionOverlay();
+        }
+        async function fetchJson(url) {
+            const response = await fetch(url, { cache: "no-store" });
+            if (!response.ok) {
+                let message = `数据库请求失败（${response.status}）`;
+                try { const body = await response.json(); if (body.error) message = body.error } catch (_) {}
+                throw new Error(message);
+            }
+            return response.json();
+        }
+        function applyMetadataDates(item) {
+            minAvailableDate = item.minDate; maxAvailableDate = item.maxDate;
+            selectedStartDate = minAvailableDate;
+            const weekEnd = new Date(Date.parse(minAvailableDate + "T00:00:00Z") + 6 * 86400000).toISOString().slice(0, 10);
+            selectedEndDate = weekEnd <= maxAvailableDate ? weekEnd : maxAvailableDate;
+            startDate.min = endDate.min = minAvailableDate;
+            startDate.max = endDate.max = maxAvailableDate;
+            startDate.value = selectedStartDate; endDate.value = selectedEndDate;
+        }
+        async function loadStandards() {
+            const item = metadataCatalog.find(row => row.code === metadata.value);
+            if (!item) return;
+            dateStatus.textContent = "正在读取上下限标准…"; applyDates.disabled = true;
+            records = await fetchJson(`${API_BASE}/standards?code=${encodeURIComponent(item.code)}`);
+            dailyRecords = []; actualByKey = new Map(); viewMode = "standard";
+            boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限";
+            boundsOnlyReset.style.display = "none"; spec.value = "全部";
+            applyMetadataDates(item); refreshFilterOptions(); clearSelection(); build();
+            dateStatus.textContent = "未查询时间，当前只显示上下限标准";
+            dateStatus.classList.remove("error"); applyDates.disabled = false;
+        }
+        async function loadMetadataCatalog() {
+            metadataCatalog = await fetchJson(`${API_BASE}/metadata`);
+            metadata.innerHTML = "";
+            metadataCatalog.forEach(item => {
+                const option = document.createElement("option");
+                option.value = item.code; option.textContent = item.name; metadata.appendChild(option);
+            });
+            if (!metadataCatalog.length) throw new Error("数据库中没有同时具备上下限标准和实际统计结果的元数据");
+            await loadStandards();
+        }
+        async function applyDateSelection() {
+            const start = startDate.value, end = endDate.value, days = inclusiveDays(start, end);
+            if (!start || !end || end < start) { dateStatus.textContent = "结束日期不能早于开始日期"; dateStatus.classList.add("error"); return }
+            if (days < 7 || days > 365) { dateStatus.textContent = `请选择7～365天，当前${days}天`; dateStatus.classList.add("error"); return }
+            applyDates.disabled = true; dateStatus.textContent = "正在查询实际数据…"; dateStatus.classList.remove("error");
+            try {
+                dailyRecords = await fetchJson(`${API_BASE}/daily?code=${encodeURIComponent(metadata.value)}&start=${start}&end=${end}`);
+                selectedStartDate = start; selectedEndDate = end; actualByKey = aggregateActual(start, end);
+                viewMode = "compare"; boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限";
+                document.getElementById("actualNormalLegend").style.display = "";
+                document.getElementById("actualAbnormalLegend").style.display = "";
+                document.getElementById("selectionLegendText").textContent = "单击突出所选标准与实际范围";
+                boundsOnlyReset.style.display = "";
+                closeDrilldown(); clearSelection(); refreshFilterOptions(); updateDateStatusForSpec(); build();
+            } catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error") }
+            finally { applyDates.disabled = false }
+        }
+        boundsOnlyReset.onclick = () => setBoundsOnly(!boundsOnlyActive);
+        view3dButton.onclick = () => switchDimension("3d");
+        view2dButton.onclick = () => switchDimension("2d");
+        applyDates.onclick = applyDateSelection;
+        metadata.onchange = async () => {
+            closeDrilldown();
+            try { await loadStandards() }
+            catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error"); applyDates.disabled = false }
+        };
+        spec.onchange = () => { closeDrilldown(); updateDateStatusForSpec(); build() };
+        resetFilters.onclick = () => {
+            closeDrilldown(); viewMode = "standard"; dailyRecords = []; actualByKey = new Map();
+            boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限"; boundsOnlyReset.style.display = "none";
+            dateStatus.textContent = "未查询时间，当前只显示上下限标准"; dateStatus.classList.remove("error");
+            spec.value = "全部"; clearSelection(); refreshFilterOptions(); build();
+        };
+        resize(); animate();
+        loadMetadataCatalog().catch(error => {
+            metadata.innerHTML = '<option value="">读取失败</option>';
+            dateStatus.textContent = error.message; dateStatus.classList.add("error");
+        });
+    </script>
+</body>
+
+</html>
+
