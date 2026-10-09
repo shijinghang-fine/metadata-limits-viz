@@ -3,15 +3,12 @@
 import argparse
 import json
 import logging
+import sys
 import time
-from datetime import timezone
 from pathlib import Path
 
 import pandas as pd
-import pymysql
-import pytz
 import yaml
-from influxdb_client import InfluxDBClient
 from influxdb_client.client.warnings import MissingPivotFunction
 import warnings
 
@@ -19,10 +16,52 @@ warnings.simplefilter("ignore", MissingPivotFunction)
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from repository import influx_repository, mysql_repository
+
 PROJECT_CONFIG = PROJECT_ROOT / "config" / "config.yaml"
 PIPELINE_CONFIG = PROJECT_CONFIG
 TABLE_NAME = "metadata_daily_limits"
 LOGGER = logging.getLogger("daily_limits")
+
+
+class TeeStream:
+    """把终端输出同步复制到日志文件。"""
+
+    def __init__(self, terminal, log_file):
+        self.terminal = terminal
+        self.log_file = log_file
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log_file.write(message)
+        self.log_file.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log_file.flush()
+
+    def isatty(self):
+        return self.terminal.isatty()
+
+
+def configure_run_logging():
+    """将普通日志和进度打印同时保存到 logs/daily_limits.log。"""
+    log_dir = PROJECT_ROOT / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = (log_dir / "daily_limits.log").open(
+        "a", encoding="utf-8", buffering=1
+    )
+    sys.stdout = TeeStream(sys.__stdout__, log_file)
+    sys.stderr = TeeStream(sys.__stderr__, log_file)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        stream=sys.stdout,
+    )
+    LOGGER.info("日级上下限任务启动，日志=%s", log_file.name)
 
 
 def read_yaml(path):
@@ -42,93 +81,6 @@ def load_codes(path):
     return result
 
 
-def mysql_connection(config, autocommit=False):
-    return pymysql.connect(
-        host=config["Host"], port=int(config.get("Port", 3306)),
-        user=config["Username"], password=config["Password"],
-        database=config["database"], charset="utf8mb4",
-        cursorclass=pymysql.cursors.DictCursor, autocommit=autocommit,
-    )
-
-
-def get_storage_locations(codes, company_mysql):
-    placeholders = ",".join(["%s"] * len(codes))
-    sql = f"""
-        SELECT id, storage_location FROM kl_metadata
-        WHERE organ_code = %s AND id IN ({placeholders})
-    """
-    connection = mysql_connection(company_mysql, autocommit=True)
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(sql, [company_mysql["organ_code"], *codes])
-            return {row["id"]: row["storage_location"] for row in cursor.fetchall()}
-    finally:
-        connection.close()
-
-
-def ensure_result_table(result_mysql):
-    sql = f"""
-        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            stat_date DATE NOT NULL,
-            metadata_code VARCHAR(64) NOT NULL,
-            steel_grade VARCHAR(64) NOT NULL,
-            width INT NOT NULL,
-            casting_speed DECIMAL(8,3) NOT NULL,
-            min_value DOUBLE NULL,
-            max_value DOUBLE NULL,
-            valid_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY uk_daily_condition
-                (stat_date, metadata_code, steel_grade, width, casting_speed),
-            KEY idx_code_date (metadata_code, stat_date),
-            KEY idx_date_condition
-                (stat_date, steel_grade, width, casting_speed)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    """
-    connection = mysql_connection(result_mysql)
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(sql)
-        connection.commit()
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
-
-
-def write_results(rows, result_mysql, batch_size=1000):
-    if not rows:
-        return 0
-    sql = f"""
-        INSERT INTO {TABLE_NAME} (
-            stat_date, metadata_code, steel_grade, width, casting_speed,
-            min_value, max_value, valid_count
-        ) VALUES (
-            %(stat_date)s, %(metadata_code)s, %(steel_grade)s, %(width)s,
-            %(casting_speed)s, %(min_value)s, %(max_value)s, %(valid_count)s
-        ) ON DUPLICATE KEY UPDATE
-            min_value=VALUES(min_value), max_value=VALUES(max_value),
-            valid_count=VALUES(valid_count), updated_at=CURRENT_TIMESTAMP
-    """
-    connection = mysql_connection(result_mysql)
-    try:
-        with connection.cursor() as cursor:
-            for offset in range(0, len(rows), batch_size):
-                cursor.executemany(sql, rows[offset:offset + batch_size])
-        connection.commit()
-        return len(rows)
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
-
-
 def write_local_day(rows, output_dir, day):
     """按日期原子覆盖CSV，方便中断后安全重跑当天。"""
     if not rows:
@@ -146,73 +98,6 @@ def write_local_day(rows, output_dir, day):
     frame.to_csv(temporary_path, index=False, encoding="utf-8-sig")
     temporary_path.replace(output_path)
     return len(frame)
-
-
-def to_utc_string(local_time):
-    local = pytz.timezone("Asia/Shanghai").localize(
-        pd.Timestamp(local_time).to_pydatetime()
-    )
-    return local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def query_influx_batch(client, influx, start_time, end_time, codes, storage):
-    fields = json.dumps(codes, ensure_ascii=False)
-    measurement = json.dumps(str(storage), ensure_ascii=False)
-    query = f'''
-    from(bucket: "{influx["bucket"]}")
-      |> range(start: {to_utc_string(start_time)}, stop: {to_utc_string(end_time)})
-      |> filter(fn: (r) => r["_measurement"] == {measurement})
-      |> filter(fn: (r) => contains(value: r["_field"], set: {fields}))
-      |> aggregateWindow(every: 1s, fn: last, createEmpty: false)
-      |> keep(columns: ["_value", "_time", "_field"])
-    '''
-    result = client.query_api().query_data_frame(query)
-    frames = result if isinstance(result, list) else [result]
-    frames = [frame for frame in frames if frame is not None and not frame.empty]
-    if not frames:
-        return pd.DataFrame(columns=["_time", "metadata_code", "value"])
-    frame = pd.concat(frames, ignore_index=True)[["_time", "_field", "_value"]]
-    frame = frame.rename(columns={"_field": "metadata_code", "_value": "value"})
-    frame["_time"] = pd.to_datetime(frame["_time"], utc=True)
-    frame["value"] = pd.to_numeric(frame["value"], errors="coerce")
-    return frame.dropna(subset=["_time", "metadata_code", "value"])
-
-
-def query_influx_day_batch(client, influx, periods, codes, storage_by_code):
-    """用一次Flux请求union当天全部精确生产时间段。"""
-    fields = json.dumps(codes, ensure_ascii=False)
-    measurements = json.dumps(
-        sorted({str(storage_by_code[code]) for code in codes}), ensure_ascii=False
-    )
-    table_names = []
-    table_queries = []
-    for index, period in enumerate(periods.to_dict("records")):
-        start_utc = to_utc_string(period["start_time"])
-        end_utc = to_utc_string(period["end_time"])
-        table_name = f"period{index}"
-        table_names.append(table_name)
-        table_queries.append(
-            f'''{table_name} = from(bucket: "{influx["bucket"]}")
-      |> range(start: {start_utc}, stop: {end_utc})
-      |> filter(fn: (r) => contains(value: r["_measurement"], set: {measurements}))
-      |> filter(fn: (r) => contains(value: r["_field"], set: {fields}))'''
-        )
-    query = "\n\n".join(table_queries) + f'''
-
-    union(tables: [{", ".join(table_names)}])
-      |> aggregateWindow(every: 1s, fn: last, createEmpty: false)
-      |> keep(columns: ["_value", "_time", "_field"])
-    '''
-    result = client.query_api().query_data_frame(query)
-    frames = result if isinstance(result, list) else [result]
-    frames = [frame for frame in frames if frame is not None and not frame.empty]
-    if not frames:
-        return pd.DataFrame(columns=["_time", "metadata_code", "value"])
-    frame = pd.concat(frames, ignore_index=True)[["_time", "_field", "_value"]]
-    frame = frame.rename(columns={"_field": "metadata_code", "_value": "value"})
-    frame["_time"] = pd.to_datetime(frame["_time"], utc=True)
-    frame["value"] = pd.to_numeric(frame["value"], errors="coerce")
-    return frame.dropna(subset=["_time", "metadata_code", "value"])
 
 
 def load_periods(excel_path, start_date=None, end_date=None):
@@ -341,7 +226,9 @@ def run(args):
     codes = load_codes(pipeline["CodesFile"])
     if args.code_limit:
         codes = codes[:args.code_limit]
-    storage_by_code = get_storage_locations(codes, project["Mysql"])
+    storage_by_code = mysql_repository.get_storage_locations(
+        codes, project["Mysql"]
+    )
     missing = [code for code in codes if code not in storage_by_code]
     if missing:
         LOGGER.warning("%s个编码没有storage_location，将跳过", len(missing))
@@ -353,12 +240,9 @@ def run(args):
         raise ValueError("指定范围内没有3ST浇铸时间段")
     result_mysql = pipeline["ResultMysql"]
     if not args.dry_run and not args.local_only:
-        ensure_result_table(result_mysql)
+        mysql_repository.ensure_daily_limits_table(result_mysql)
     influx = project["Influxdb"]
-    client = InfluxDBClient(
-        url=influx["url"], token=influx["token"], org=influx["org"],
-        timeout=120000,
-    )
+    client = influx_repository.create_client(influx)
     first_day = pd.Timestamp(args.start or periods["start_time"].min().date())
     last_day = pd.Timestamp(args.end or periods["end_time"].max().date())
     days = list(pd.date_range(first_day, last_day, freq="D"))
@@ -385,7 +269,7 @@ def run(args):
                 for period_number, period in enumerate(period_records, 1):
                     query_started = time.perf_counter()
                     one_period = pd.DataFrame([period])
-                    frame = query_influx_day_batch(
+                    frame = influx_repository.query_periods(
                         client, influx, one_period, code_batch, storage_by_code
                     )
                     query_seconds = time.perf_counter() - query_started
@@ -416,7 +300,9 @@ def run(args):
                 if args.local_only:
                     day_rows.extend(rows)
                 elif not args.dry_run:
-                    total += write_results(rows, result_mysql)
+                    total += mysql_repository.write_daily_limits(
+                        rows, result_mysql
+                    )
                 print(" " * 150, end="\r", flush=True)
                 LOGGER.info(
                     "日期=%s 批次=%s/%s 编码=%s 原始点=%s 结果=%s "
@@ -454,7 +340,7 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_run_logging()
     arguments = parse_args()
     written = run(arguments)
     LOGGER.info("完成，写入或更新%s条结果", written)

@@ -5,7 +5,6 @@
 """
 
 import argparse
-import json
 import logging
 import sys
 import threading
@@ -16,9 +15,9 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
-from influxdb_client import InfluxDBClient
 
 import daily_limits_pipeline as base
+from repository import influx_repository, mysql_repository
 
 
 LOGGER = logging.getLogger("threaded_daily_limits")
@@ -26,8 +25,44 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "config.yaml"
 THREAD_LOCAL = threading.local()
 WORKER_COUNT = 5
-PROGRESS_TABLE = "daily_limits_month_progress"
 TIMER_INTERVAL_SECONDS = 30
+
+
+class TeeStream:
+    """把终端输出同步复制到日志文件。"""
+
+    def __init__(self, terminal, log_file):
+        self.terminal = terminal
+        self.log_file = log_file
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log_file.write(message)
+        self.log_file.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log_file.flush()
+
+    def isatty(self):
+        return self.terminal.isatty()
+
+
+def configure_run_logging():
+    """将线程进度、耗时和错误保存到 logs/threaded_daily_limits.log。"""
+    log_dir = PROJECT_ROOT / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = (log_dir / "threaded_daily_limits.log").open(
+        "a", encoding="utf-8", buffering=1
+    )
+    sys.stdout = TeeStream(sys.__stdout__, log_file)
+    sys.stderr = TeeStream(sys.__stderr__, log_file)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        stream=sys.stdout,
+    )
+    LOGGER.info("多线程日级上下限任务启动，日志=%s", log_file.name)
 
 
 def read_pipeline_config(path):
@@ -39,150 +74,9 @@ def get_thread_client(influx):
     """每个工作线程复用自己的 InfluxDB 连接。"""
     client = getattr(THREAD_LOCAL, "influx_client", None)
     if client is None:
-        client = InfluxDBClient(
-            url=influx["url"],
-            token=influx["token"],
-            org=influx["org"],
-            timeout=120000,
-        )
+        client = influx_repository.create_client(influx)
         THREAD_LOCAL.influx_client = client
     return client
-
-
-def query_code_range_with_retry(
-    client,
-    influx,
-    start_time,
-    end_time,
-    code,
-    storage,
-    retries,
-):
-    """按备份程序的方式，精确查询一个元数据的一段连续时间。"""
-    last_error = None
-
-    for attempt in range(1, retries + 1):
-        try:
-            field_value = json.dumps(code, ensure_ascii=False)
-            measurement_value = json.dumps(str(storage), ensure_ascii=False)
-            start_utc = base.to_utc_string(start_time)
-            end_utc = base.to_utc_string(end_time)
-            query = f'''\
-from(bucket: "{influx["bucket"]}")
-  |> range(start: {start_utc}, stop: {end_utc})
-  |> filter(fn: (r) => r["_measurement"] == {measurement_value})
-  |> filter(fn: (r) => r["_field"] == {field_value})
-  |> aggregateWindow(every: 1s, fn: last, createEmpty: false)
-  |> keep(columns: ["_value", "_time", "_field", "_measurement"])
-  |> yield(name: "last")
-'''
-            result = client.query_api().query_data_frame(query)
-            frames = result if isinstance(result, list) else [result]
-            frames = [
-                frame for frame in frames
-                if frame is not None and not frame.empty
-            ]
-            if not frames:
-                return pd.DataFrame(
-                    columns=["_time", "metadata_code", "value"]
-                )
-
-            frame = pd.concat(frames, ignore_index=True)[
-                ["_time", "_field", "_value"]
-            ]
-            frame = frame.rename(columns={
-                "_field": "metadata_code",
-                "_value": "value",
-            })
-            frame["_time"] = pd.to_datetime(frame["_time"], utc=True)
-            frame["value"] = pd.to_numeric(
-                frame["value"], errors="coerce"
-            )
-            return frame.dropna(
-                subset=["_time", "metadata_code", "value"]
-            )
-        except Exception as error:
-            last_error = error
-            if attempt < retries:
-                time.sleep(min(2 ** (attempt - 1), 8))
-
-    raise RuntimeError(
-        f"查询元数据 {code} 失败：{start_time} 至 "
-        f"{end_time}，重试{retries}次仍失败；"
-        f"最后错误：{last_error}"
-    ) from last_error
-
-
-def ensure_progress_table(result_mysql):
-    """记录每个元数据已经成功完成的月份，用于中断后继续。"""
-    connection = base.mysql_connection(result_mysql)
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {PROGRESS_TABLE} (
-                    metadata_code VARCHAR(64) NOT NULL,
-                    month_start DATE NOT NULL,
-                    month_end DATE NOT NULL,
-                    completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (metadata_code, month_start)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """)
-        connection.commit()
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
-
-
-def load_completed_months(result_mysql, codes, first_day, last_day):
-    """读取指定元数据在当前日期范围内已完成的月份。"""
-    if not codes:
-        return set()
-    placeholders = ",".join(["%s"] * len(codes))
-    sql = f"""
-        SELECT metadata_code, month_start
-        FROM {PROGRESS_TABLE}
-        WHERE metadata_code IN ({placeholders})
-          AND month_start >= %s
-          AND month_start <= %s
-    """
-    connection = base.mysql_connection(result_mysql, autocommit=True)
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(sql, [*codes, first_day.date(), last_day.date()])
-            return {
-                (row["metadata_code"], pd.Timestamp(row["month_start"]).date())
-                for row in cursor.fetchall()
-            }
-    finally:
-        connection.close()
-
-
-def mark_month_completed(result_mysql, code_batch, month_start, month_end):
-    """只有整个月份任务成功后才写入完成标记。"""
-    sql = f"""
-        INSERT INTO {PROGRESS_TABLE} (
-            metadata_code, month_start, month_end, completed_at
-        ) VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
-        ON DUPLICATE KEY UPDATE
-            month_end = VALUES(month_end),
-            completed_at = CURRENT_TIMESTAMP
-    """
-    rows = [
-        (code, month_start.date(), month_end.date())
-        for code in code_batch
-    ]
-    connection = base.mysql_connection(result_mysql)
-    try:
-        with connection.cursor() as cursor:
-            cursor.executemany(sql, rows)
-        connection.commit()
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
 
 
 def process_day_batch(
@@ -211,9 +105,9 @@ def process_day_batch(
 
     # 与备份程序一致：每个元数据整天只查询一次。
     for code in code_batch:
-        frame = query_code_range_with_retry(
+        frame = influx_repository.query_code_range_with_retry(
             client=client,
-            influx=influx,
+            config=influx,
             start_time=query_start,
             end_time=query_end,
             code=code,
@@ -234,7 +128,7 @@ def process_day_batch(
     )
     # 查询结果在内存中匹配当天全部3ST生产时段，再计算日级上下限。
     rows = base.match_and_aggregate(raw, day_periods)
-    written_rows = base.write_results(rows, result_mysql)
+    written_rows = mysql_repository.write_daily_limits(rows, result_mysql)
 
     # 本日统计完成后立即释放原始秒级数据。
     del raw, frames, rows
@@ -280,7 +174,9 @@ def run(args):
     elif args.code_limit:
         codes = codes[:args.code_limit]
 
-    storage_by_code = base.get_storage_locations(codes, project["Mysql"])
+    storage_by_code = mysql_repository.get_storage_locations(
+        codes, project["Mysql"]
+    )
     missing_codes = [code for code in codes if code not in storage_by_code]
     if missing_codes:
         print(f"有 {len(missing_codes):,} 个编码没有存储位置，已跳过。")
@@ -303,11 +199,11 @@ def run(args):
     result_mysql = pipeline["ResultMysql"]
     influx = project["Influxdb"]
 
-    base.ensure_result_table(result_mysql)
-    ensure_progress_table(result_mysql)
+    mysql_repository.ensure_daily_limits_table(result_mysql)
+    mysql_repository.ensure_progress_table(result_mysql)
 
     month_periods = list(pd.period_range(first_day, last_day, freq="M"))
-    completed_months = load_completed_months(
+    completed_months = mysql_repository.load_completed_months(
         result_mysql,
         codes,
         first_day,
@@ -408,7 +304,7 @@ def run(args):
 
                 if not plan["active_days"]:
                     for code_batch in plan["pending_batches"]:
-                        mark_month_completed(
+                        mysql_repository.mark_month_completed(
                             result_mysql,
                             code_batch,
                             plan["progress_month_start"],
@@ -480,7 +376,7 @@ def run(args):
                 ):
                     if batch_index in failed_batches:
                         continue
-                    mark_month_completed(
+                    mysql_repository.mark_month_completed(
                         result_mysql,
                         code_batch,
                         plan["progress_month_start"],
@@ -508,7 +404,7 @@ def run(args):
     print(f"总耗时：{base.format_duration(elapsed)}")
 
     if failures:
-        failure_log = Path(__file__).resolve().parent / "threaded_daily_limits_failures.txt"
+        failure_log = PROJECT_ROOT / "logs" / "threaded_daily_limits_failures.txt"
         with failure_log.open("w", encoding="utf-8") as file:
             for month_label, day, code_batch, error in failures:
                 file.write(
@@ -566,8 +462,5 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-    )
+    configure_run_logging()
     run(parse_args())

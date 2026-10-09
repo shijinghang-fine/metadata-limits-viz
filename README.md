@@ -6,18 +6,29 @@
 
 ```text
 metadata-visualization/
-├─ app/
-│  ├─ app.py
+├─ frontend/
 │  └─ chart.html
+├─ server/
+│  ├─ app.py
+│  ├─ routes.py
+│  └─ services.py
+├─ repository/
+│  ├─ mysql_repository.py
+│  └─ influx_repository.py
 ├─ pipeline/
 │  ├─ daily_limits_pipeline.py
 │  └─ threaded_daily_limits_pipeline.py
 ├─ config/
 │  └─ config.example.yaml
+├─ logs/
 ├─ requirements.txt
 ├─ README.md
 └─ .gitignore
 ```
+
+`frontend` 负责页面与图表交互，`server` 负责启动、接口和业务转换，
+`pipeline` 负责计算与任务调度，`repository` 集中负责 MySQL、InfluxDB
+的连接、查询、事务和写入，`logs` 保存服务与数据任务的运行日志。
 
 ## 安装
 
@@ -52,7 +63,7 @@ python pipeline/threaded_daily_limits_pipeline.py `
 ## 启动可视化
 
 ```powershell
-streamlit run app/app.py --server.address 0.0.0.0 --server.port 8501
+streamlit run server/app.py --server.address 0.0.0.0 --server.port 8501
 ```
 
 默认页面地址为 `http://本机IP:8501/`，同一局域网内可访问。Flask 数据接口默认监听 `8765` 端口。
