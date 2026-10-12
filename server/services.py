@@ -43,6 +43,46 @@ def list_metadata(mysql_config):
 def list_standards(mysql_config, metadata_code):
     """返回标准上下限，并生成二维、三维图共用的工艺坐标。"""
     rows = mysql_repository.fetch_standards(mysql_config, metadata_code)
+    return transform_standards(rows)
+
+
+def list_all_standards(mysql_config):
+    """返回全部上限的紧凑矩阵，避免重复传输元数据和工艺文字。"""
+    data = mysql_repository.fetch_all_standards(mysql_config)
+    labels = []
+    conditions = []
+    for mark, width, speed_raw in data["conditions"]:
+        steel = STEEL_BY_MARK.get(mark, f"钢种标记{mark or '未知'}")
+        speed = speed_raw / 100 if abs(speed_raw) >= 10 else speed_raw
+        label = f"{steel}｜宽度{width:g}"
+        labels.append(label)
+        conditions.append(
+            {
+                "mark": mark,
+                "steel": steel,
+                "width": width,
+                "speed": speed,
+                "mode": "浇铸模式",
+                "yLabel": label,
+            }
+        )
+    y_by_label = {
+        label: index for index, label in enumerate(sorted(set(labels)))
+    }
+    for condition in conditions:
+        condition["y"] = y_by_label[condition["yLabel"]]
+    return {
+        "metadata": [
+            {"code": item["code"], "name": display_name(item["name"])}
+            for item in data["metadata"]
+        ],
+        "conditions": conditions,
+        "upperValues": data["upper_values"],
+    }
+
+
+def transform_standards(rows):
+    """把标准记录转换为前端二维、三维图共用的数据结构。"""
     result = []
     for row in rows:
         mark = str(row["steel_mark"] or "").strip()

@@ -22,7 +22,8 @@ ResultMysql:
   Password: "your_password"
   database: "metadata_result_database"
 
-# 以下文件建议使用绝对路径，或相对于执行命令所在目录填写。
-CodesFile: "D:/path/to/metadata_codes.json"
-ProductionExcel: "D:/path/to/3ST生产明细.xlsx"
+# 项目内置的数据文件；从项目根目录运行脚本时可直接使用。
+CodesFile: "data/metadata_codes.json"
+ProductionExcel: "data/production_periods.xlsx"
+OutputDir: "outputs/daily_limits"
 

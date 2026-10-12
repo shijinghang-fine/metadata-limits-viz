@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import socket
 import sys
-from threading import Thread
+from threading import Event, Thread
 
 import streamlit as st
 from werkzeug.serving import make_server
@@ -75,14 +75,38 @@ def get_lan_host():
 def start_api_server():
     """后台启动 Flask API；Streamlit 重跑时复用同一个服务实例。"""
     api = create_api(CONFIG_FILE, CHART_FILE)
-    server = make_server(API_BIND_HOST, API_PORT, api, threaded=True)
-    Thread(
-        target=server.serve_forever,
+    started = Event()
+    state = {}
+
+    def serve():
+        try:
+            server = make_server(API_BIND_HOST, API_PORT, api, threaded=True)
+            state["server"] = server
+            started.set()
+            LOGGER.info(
+                "Flask 数据接口已启动：%s:%s",
+                API_BIND_HOST,
+                API_PORT,
+            )
+            server.serve_forever()
+        except Exception as error:
+            state["error"] = error
+            started.set()
+            LOGGER.exception("Flask 数据接口启动失败")
+
+    thread = Thread(
+        target=serve,
         name="metadata-api",
         daemon=True,
-    ).start()
-    LOGGER.info("Flask 数据接口已启动：%s:%s", API_BIND_HOST, API_PORT)
-    return server
+    )
+    thread.start()
+    if not started.wait(timeout=8):
+        raise RuntimeError(f"Flask 数据接口启动超时：端口 {API_PORT}")
+    if "error" in state:
+        raise RuntimeError(
+            f"Flask 数据接口启动失败：{state['error']}"
+        ) from state["error"]
+    return state["server"]
 
 
 def render_page():

@@ -84,6 +84,67 @@ def fetch_standards(config, metadata_code):
             return cursor.fetchall()
 
 
+def fetch_all_standards(config):
+    """查询总览需要的全部上限，并压缩为元数据、条件和数值矩阵。"""
+    codes_sql = """
+        SELECT DISTINCT metadata_code
+        FROM metadata_daily_limits
+        ORDER BY metadata_code
+    """
+    with connect(config, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(codes_sql)
+            codes = [row["metadata_code"] for row in cursor.fetchall()]
+            sql = """
+                SELECT metadata_code, MAX(metadata_name) AS metadata_name,
+                       MAX(upper_limit) AS upper_limit,
+                       steel_mark, casting_speed, width
+                FROM standard_limits
+                WHERE metadata_code = %s
+                  AND casting_mode = '浇铸模式'
+                GROUP BY metadata_code, steel_mark, width, casting_speed
+                ORDER BY steel_mark, width, casting_speed
+            """
+            metadata = []
+            conditions = None
+            values = []
+            for code in codes:
+                cursor.execute(sql, (code,))
+                rows = cursor.fetchall()
+                if not rows:
+                    continue
+                current_conditions = [
+                    (
+                        str(row["steel_mark"] or "").strip(),
+                        float(row["width"]),
+                        float(row["casting_speed"]),
+                    )
+                    for row in rows
+                ]
+                if conditions is None:
+                    conditions = current_conditions
+                elif current_conditions != conditions:
+                    raise ValueError(
+                        f"元数据 {code} 的生产条件与总览公共条件不一致"
+                    )
+                metadata.append(
+                    {
+                        "code": code,
+                        "name": rows[0]["metadata_name"] or code,
+                    }
+                )
+                values.extend(
+                    None if row["upper_limit"] is None
+                    else float(row["upper_limit"])
+                    for row in rows
+                )
+            return {
+                "metadata": metadata,
+                "conditions": conditions or [],
+                "upper_values": values,
+            }
+
+
 def fetch_daily_limits(config, metadata_code, start_date, end_date):
     """查询一个元数据在日期范围内的每日实际上下限。"""
     sql = """
@@ -183,10 +244,15 @@ def write_daily_limits(rows, result_mysql, batch_size=1000):
 
 
 def ensure_progress_table(result_mysql):
-    """确保月份级断点续跑进度表存在。"""
+    """确保月份级断点续跑进度表及完整范围字段存在。
+
+    ``range_start`` 用来区分历史上可能由半月任务写入的模糊记录。
+    旧记录保持 NULL，不会再被当作完整自然月直接跳过。
+    """
     sql = f"""
         CREATE TABLE IF NOT EXISTS {PROGRESS_TABLE} (
             metadata_code VARCHAR(64) NOT NULL,
+            range_start DATE NULL,
             month_start DATE NOT NULL,
             month_end DATE NOT NULL,
             completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -197,6 +263,25 @@ def ensure_progress_table(result_mysql):
     try:
         with connection.cursor() as cursor:
             cursor.execute(sql)
+            cursor.execute(
+                f"SHOW COLUMNS FROM {PROGRESS_TABLE} LIKE 'range_start'"
+            )
+            if cursor.fetchone() is None:
+                try:
+                    cursor.execute(
+                        f"ALTER TABLE {PROGRESS_TABLE} "
+                        "ADD COLUMN range_start DATE NULL AFTER metadata_code"
+                    )
+                except pymysql.err.OperationalError as error:
+                    if error.args[0] != 1060:
+                        raise
+            # 兼容旧版进度表：旧脚本没有 range_start，但任务均从
+            # month_start 开始，可补齐后继续用于同一查询范围的断点跳过。
+            cursor.execute(f"""
+                UPDATE {PROGRESS_TABLE}
+                SET range_start = month_start
+                WHERE range_start IS NULL
+            """)
         connection.commit()
     except Exception:
         connection.rollback()
@@ -206,7 +291,7 @@ def ensure_progress_table(result_mysql):
 
 
 def load_completed_months(result_mysql, codes, first_day, last_day):
-    """读取日期范围内已经成功处理的元数据月份。"""
+    """读取已经覆盖本次查询范围的月份进度记录。"""
     if not codes:
         return set()
     placeholders = ",".join(["%s"] * len(codes))
@@ -216,10 +301,18 @@ def load_completed_months(result_mysql, codes, first_day, last_day):
         WHERE metadata_code IN ({placeholders})
           AND month_start >= %s
           AND month_start <= %s
+          AND range_start <= GREATEST(month_start, %s)
+          AND month_end >= LEAST(LAST_DAY(month_start), %s)
     """
     with connect(result_mysql, autocommit=True) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(sql, [*codes, first_day.date(), last_day.date()])
+            cursor.execute(sql, [
+                *codes,
+                first_day.date(),
+                last_day.date(),
+                first_day.date(),
+                last_day.date(),
+            ])
             return {
                 (row["metadata_code"], row["month_start"])
                 for row in cursor.fetchall()
@@ -227,17 +320,26 @@ def load_completed_months(result_mysql, codes, first_day, last_day):
 
 
 def mark_month_completed(result_mysql, codes, month_start, month_end):
-    """在整批月任务成功后写入完成标记。"""
+    """在本次月份范围的整批任务成功后写入完成标记。"""
+    start_date = month_start.date() if hasattr(month_start, "date") else month_start
+    end_date = month_end.date() if hasattr(month_end, "date") else month_end
+
     sql = f"""
         INSERT INTO {PROGRESS_TABLE} (
-            metadata_code, month_start, month_end, completed_at
-        ) VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+            metadata_code, range_start, month_start, month_end, completed_at
+        ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
         ON DUPLICATE KEY UPDATE
+            range_start = VALUES(range_start),
             month_end = VALUES(month_end),
             completed_at = CURRENT_TIMESTAMP
     """
     rows = [
-        (code, month_start.date(), month_end.date())
+        (
+            code,
+            start_date,
+            start_date,
+            end_date,
+        )
         for code in codes
     ]
     connection = connect(result_mysql)

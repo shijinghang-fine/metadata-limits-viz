@@ -21,6 +21,7 @@ def create_api(config_file, chart_file):
     接口：
     - ``GET /chart``：返回前端可视化页面。
     - ``GET /api/metadata``：返回元数据列表和可查询日期范围。
+    - ``GET /api/standards/all``：返回全部元数据的浇铸模式标准。
     - ``GET /api/standards?code=...``：返回指定元数据标准上下限。
     - ``GET /api/daily?code=...&start=...&end=...``：返回每日实际上下限。
     """
@@ -55,6 +56,11 @@ def create_api(config_file, chart_file):
         if not code:
             return jsonify({"error": "缺少元数据编码"}), 400
         return jsonify(services.list_standards(mysql_config, code))
+
+    @api.get("/api/standards/all")
+    def all_standards():
+        """提供全部元数据的浇铸模式标准，供总览点云使用。"""
+        return jsonify(services.list_all_standards(mysql_config))
 
     @api.get("/api/daily")
     def daily():

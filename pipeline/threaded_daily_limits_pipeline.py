@@ -24,6 +24,7 @@ LOGGER = logging.getLogger("threaded_daily_limits")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "config.yaml"
 THREAD_LOCAL = threading.local()
+MYSQL_WRITE_LOCK = threading.Lock()
 WORKER_COUNT = 5
 TIMER_INTERVAL_SECONDS = 30
 
@@ -128,7 +129,10 @@ def process_day_batch(
     )
     # 查询结果在内存中匹配当天全部3ST生产时段，再计算日级上下限。
     rows = base.match_and_aggregate(raw, day_periods)
-    written_rows = mysql_repository.write_daily_limits(rows, result_mysql)
+    # 远程查询和统计保持多线程；本地结果表写入排队，避免多个
+    # AUTO_INCREMENT 批量事务争用同一个主键索引尾页而产生死锁。
+    with MYSQL_WRITE_LOCK:
+        written_rows = mysql_repository.write_daily_limits(rows, result_mysql)
 
     # 本日统计完成后立即释放原始秒级数据。
     del raw, frames, rows
