@@ -72,12 +72,40 @@
 
         .toolbar {
             display: flex;
+            flex-direction: column;
+            gap: 0;
+            padding: 0 14px;
+            background: #f8fafc;
+            border-top: 1px solid #e8edf4;
+            border-bottom: 1px solid #dfe6ef;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, .04)
+        }
+
+        .toolbar-primary {
+            display: flex;
             align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            padding: 7px 14px;
-            background: #fbfcfe;
-            border-bottom: 1px solid #e6ebf2
+            width: 100%;
+            min-height: 54px;
+            gap: 0
+        }
+
+        .query-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 34px;
+            padding: 0 20px;
+            border-right: 1px solid #dfe6ef
+        }
+
+        .query-section:first-child { padding-left: 4px }
+        .query-section:last-child { border-right: 0; flex: 1 }
+
+        .section-title {
+            color: #1d5dab;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap
         }
 
         label {
@@ -87,18 +115,33 @@
 
         select,
         input {
-            padding: 4px 8px;
+            height: 32px;
+            box-sizing: border-box;
+            padding: 5px 10px;
             border: 1px solid #d7dee8;
-            border-radius: 7px;
+            border-radius: 8px;
             background: #fff;
             box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
             font: inherit;
-            font-size: 13px
+            font-size: 13px;
+            color: #1f2937;
+            outline: none;
+            transition: border-color .15s, box-shadow .15s
         }
+
+        select:focus, input:focus { border-color: #6aa4f8; box-shadow: 0 0 0 3px rgba(37, 99, 235, .1) }
 
         .meta {
             max-width: 230px
         }
+
+        #metadataSearch {
+            width: 170px;
+            padding-left: 30px
+        }
+
+        .search-wrap { position: relative; display: inline-flex }
+        .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; pointer-events: none }
 
         #spec {
             max-width: 220px
@@ -114,26 +157,29 @@
         .toolbar-secondary {
             display: flex;
             align-items: center;
-            gap: 8px;
-            flex: 0 0 100%;
+            gap: 10px;
             width: 100%;
+            min-height: 48px;
             min-width: 0;
             overflow: hidden;
-            order: 2
+            border-top: 1px solid #e8edf4
         }
 
+        .toolbar-actions { display: flex; align-items: center; gap: 10px; padding-left: 18px; border-left: 1px solid #dfe6ef }
+
         .result-count {
-            padding: 3px 7px;
-            border-radius: 7px;
+            padding: 7px 12px;
+            border-radius: 8px;
             background: #eef6ff;
             color: #1d4f91;
-            font-size: 12px;
+            font-size: 12.5px;
             font-weight: 650;
             white-space: nowrap
         }
 
         .reset-button {
-            padding: 4px 10px;
+            min-height: 32px;
+            padding: 5px 12px;
             border: 1px solid #cbd5e1;
             border-radius: 7px;
             background: #fff;
@@ -150,11 +196,14 @@
             border-color: #94a3b8
         }
 
+        .primary-button { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 650; box-shadow: 0 2px 5px rgba(37, 99, 235, .22) }
+        .primary-button:hover { background: #1d4ed8; border-color: #1d4ed8 }
+
         .date-status { font-size: 12px; color: #64748b; white-space: nowrap }
         .date-status.error { color: #dc2626; font-weight: 600 }
 
-        .view-switch { display: inline-flex; padding: 2px; border: 1px solid #cbd5e1; border-radius: 9px; background: #eef2f7 }
-        .view-button { padding: 4px 9px; border: 0; border-radius: 6px; background: transparent; color: #475569; font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap }
+        .view-switch { display: inline-flex; min-height: 32px; padding: 2px; border: 1px solid #cbd5e1; border-radius: 9px; background: #eef2f7 }
+        .view-button { padding: 5px 12px; border: 0; border-radius: 6px; background: transparent; color: #475569; font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap }
         .view-button.active { background: #2563eb; color: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, .2) }
 
         .mode-badge {
@@ -169,6 +218,8 @@
 
         .hint {
             margin-left: auto;
+            padding-left: 20px;
+            border-left: 1px solid #dfe6ef;
             font-size: 11.5px;
             color: #64748b;
             white-space: nowrap;
@@ -437,6 +488,12 @@
             font-weight: 600
         }
 
+        @media(max-width:1500px) {
+            .toolbar-primary { flex-wrap: wrap; padding: 8px 0 }
+            .query-section { padding-top: 5px; padding-bottom: 5px }
+            .query-section:last-child { flex: 0 0 100%; box-sizing: border-box; border-top: 1px solid #e8edf4; padding-left: 4px }
+        }
+
         @media(max-width:780px) {
             header {
                 align-items: start;
@@ -447,6 +504,10 @@
                 margin-left: 0;
                 width: 100%
             }
+
+            .query-section { flex-wrap: wrap; flex: 0 0 100%; box-sizing: border-box; padding-left: 4px; border-right: 0 }
+            .toolbar-secondary { flex-wrap: wrap; overflow: visible; padding: 8px 0 }
+            .toolbar-actions { flex-wrap: wrap; padding-left: 0; border-left: 0 }
 
             #view {
                 height: 780px;
@@ -468,27 +529,36 @@
         </div>
     </header>
     <div class="toolbar">
-        <div class="filter-group"><label for="metadata">元数据</label><select id="metadata" class="meta"></select></div>
-        <div class="filter-group"><label for="spec">钢种规格</label><select id="spec">
-                <option value="全部">全部</option>
-            </select></div>
-        <div class="filter-group"><label for="speed">拉速</label><select id="speed">
-                <option value="全部">全部</option>
-            </select></div>
-        <div class="filter-group time-only"><label for="startDate">开始</label><input type="date" id="startDate"></div>
-        <div class="filter-group time-only"><label for="endDate">结束</label><input type="date" id="endDate"></div>
-        <button type="button" id="applyDates" class="reset-button time-only">查询时间</button>
-        <span id="dateStatus" class="date-status time-only"></span>
-
+        <div class="toolbar-primary">
+            <div class="query-section">
+                <span class="section-title">元数据</span>
+                <div class="search-wrap"><span class="search-icon">⌕</span><input type="search" id="metadataSearch" placeholder="搜索名称或编码" autocomplete="off"></div>
+                <select id="metadata" class="meta" aria-label="元数据"></select>
+            </div>
+            <div class="query-section">
+                <span class="section-title">工艺条件</span>
+                <div class="filter-group"><label for="spec">钢种规格</label><select id="spec"><option value="全部">全部</option></select></div>
+                <div class="filter-group"><label for="speed">拉速</label><select id="speed"><option value="全部">全部</option></select></div>
+            </div>
+            <div class="query-section time-only">
+                <span class="section-title">时间范围</span>
+                <div class="filter-group"><label for="startDate">开始</label><input type="date" id="startDate"></div>
+                <div class="filter-group"><label for="endDate">结束</label><input type="date" id="endDate"></div>
+                <button type="button" id="applyDates" class="reset-button primary-button">查询时间</button>
+                <span id="dateStatus" class="date-status"></span>
+            </div>
+        </div>
         <div class="toolbar-secondary">
             <div class="result-count" id="resultCount">符合条件：0 条</div>
-            <button type="button" id="resetFilters" class="reset-button">重置筛选</button>
-            <button type="button" id="boundsOnlyReset" class="reset-button compare-only" style="display:none">复位只看上下限</button>
-            <div class="view-switch" aria-label="视图切换">
-                <button type="button" id="view2dButton" class="view-button">二维点位分布</button>
-                <button type="button" id="view3dButton" class="view-button active">三维上下限</button>
+            <div class="toolbar-actions">
+                <button type="button" id="resetFilters" class="reset-button">重置筛选</button>
+                <button type="button" id="boundsOnlyReset" class="reset-button compare-only" style="display:none">复位只看上下限</button>
+                <div class="view-switch" aria-label="视图切换">
+                    <button type="button" id="view2dButton" class="view-button">二维点位分布</button>
+                    <button type="button" id="view3dButton" class="view-button active">三维上下限</button>
+                </div>
+                <span class="mode-badge">透镜模式</span>
             </div>
-            <span class="mode-badge">浇铸模式</span>
             <div class="hint">左键旋转 · 右键平移 · 滚轮缩放 · 单击高亮 · 双击取消</div>
         </div>
     </div>
@@ -575,8 +645,11 @@
         const metadataButtonHtml = () => viewMode === "overview" && dimensionMode === "3d"
             ? `<br><button type="button" class="drill-btn" data-open-metadata="1">查看该元数据上下限 →</button>`
             : "";
+        const overviewReturnButtonHtml = () => overviewReturnPoint && viewMode === "standard" && dimensionMode === "3d"
+            ? `<br><button type="button" class="drill-btn" data-return-overview="1">← 返回全部元数据总览</button>`
+            : "";
 
-        const metadata = document.getElementById("metadata"), spec = document.getElementById("spec"), speed = document.getElementById("speed"), resultCount = document.getElementById("resultCount"), resetFilters = document.getElementById("resetFilters"), boundsOnlyReset = document.getElementById("boundsOnlyReset"), detail = document.getElementById("detail"), view = document.getElementById("view"), canvas = document.getElementById("canvas"), tooltip = document.getElementById("tooltip"), startDate = document.getElementById("startDate"), endDate = document.getElementById("endDate"), applyDates = document.getElementById("applyDates"), dateStatus = document.getElementById("dateStatus"), selectionOverlayGroup = document.getElementById("selectionOverlayGroup"), distributionSelection = document.getElementById("distributionSelection"), standardOverlayLine = document.getElementById("standardOverlayLine"), standardOverlayLower = document.getElementById("standardOverlayLower"), standardOverlayUpper = document.getElementById("standardOverlayUpper"), actualOverlayLine = document.getElementById("actualOverlayLine"), actualOverlayLower = document.getElementById("actualOverlayLower"), actualOverlayUpper = document.getElementById("actualOverlayUpper");
+        const metadata = document.getElementById("metadata"), metadataSearch = document.getElementById("metadataSearch"), spec = document.getElementById("spec"), speed = document.getElementById("speed"), resultCount = document.getElementById("resultCount"), resetFilters = document.getElementById("resetFilters"), boundsOnlyReset = document.getElementById("boundsOnlyReset"), detail = document.getElementById("detail"), view = document.getElementById("view"), canvas = document.getElementById("canvas"), tooltip = document.getElementById("tooltip"), startDate = document.getElementById("startDate"), endDate = document.getElementById("endDate"), applyDates = document.getElementById("applyDates"), dateStatus = document.getElementById("dateStatus"), selectionOverlayGroup = document.getElementById("selectionOverlayGroup"), distributionSelection = document.getElementById("distributionSelection"), standardOverlayLine = document.getElementById("standardOverlayLine"), standardOverlayLower = document.getElementById("standardOverlayLower"), standardOverlayUpper = document.getElementById("standardOverlayUpper"), actualOverlayLine = document.getElementById("actualOverlayLine"), actualOverlayLower = document.getElementById("actualOverlayLower"), actualOverlayUpper = document.getElementById("actualOverlayUpper");
         const view3dButton = document.getElementById("view3dButton"), view2dButton = document.getElementById("view2dButton"), axisDescription = document.getElementById("axisDescription"), standardRangeLegend = document.getElementById("standardRangeLegend"), standardDotsLegend = document.getElementById("standardDotsLegend"), selectionLegend = document.getElementById("selectionLegend"), distributionLegend = document.getElementById("distributionLegend"), distributionBlueDot = document.getElementById("distributionBlueDot"), distributionLegendText = document.getElementById("distributionLegendText");
         metadata.innerHTML = '<option value="">正在读取数据库…</option>';
         dateStatus.textContent = "正在连接数据库…";
@@ -606,17 +679,68 @@
         const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(38, 1, .1, 200); camera.position.set(31, 18, 29);
         const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = .08; controls.screenSpacePanning = true; controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }; controls.target.set(0, 5.2, 0);
         const root = new THREE.Group(); scene.add(root); const raycaster = new THREE.Raycaster(); raycaster.params.Line.threshold = .45; raycaster.params.Points.threshold = 1.25; const pointer = new THREE.Vector2();
-        const xMin = -18, xMax = 18; let currentRows = [], ySlots = [], xDataMin = 0, xDataMax = 1, bounds = null, segments = null, lowerPoints = null, upperPoints = null, actualNormal = null, actualAbnormal = null, actualPointLayers = [], boundsOnlyActive = false, highlightLine = null, highlightPoints = null, labelGroup = null, gridGroup = null, flatGridGroup = null, flatLabelGroup = null, downAt = null, distributionPoints = null, dimensionMode = "3d", dimensionAnimating = false, saved3dCamera = null;
-        const blue = new THREE.Color(0x2563eb), red = new THREE.Color(0xe11d48), orange = new THREE.Color(0xf59e0b);
+        const xMin = -18, xMax = 18; let currentRows = [], ySlots = [], xDataMin = 0, xDataMax = 1, bounds = null, segments = null, lowerPoints = null, upperPoints = null, actualNormal = null, actualAbnormal = null, actualPointLayers = [], boundsOnlyActive = false, highlightLine = null, highlightPoints = null, labelGroup = null, gridGroup = null, flatGridGroup = null, flatLabelGroup = null, downAt = null, distributionPoints = null, dimensionMode = "3d", dimensionAnimating = false, dimensionTransitionFlat = null, standardUpperTransition = null, metadataSceneBuildMode = null, saved3dCamera = null;
+        const blue = new THREE.Color(0x2563eb), lightBlue = new THREE.Color(0x93c5fd), red = new THREE.Color(0xe11d48), orange = new THREE.Color(0xf59e0b);
         function disposeObject(o) { o.traverse(n => { if (n.geometry) n.geometry.dispose(); if (n.material) { const a = Array.isArray(n.material) ? n.material : [n.material]; a.forEach(m => { if (m.map) m.map.dispose(); m.dispose() }) } }); o.clear() }
-        function map(v, a, b, A, B) { return b === a ? (A + B) / 2 : A + (v - a) * (B - A) / (b - a) } function xPosition(v) { if (Math.abs(v) < 1e-9) return xMin; if (xDataMin > 0 && v >= xDataMin) return map(v, xDataMin, xDataMax, xMin + 2.2, xMax); return map(v, bounds.xmin, bounds.xmax, xMin, xMax) } function yPosition(v) { const index = ySlots.indexOf(v); return index < 0 ? 0 : 12 - (index + 1) * 24 / (ySlots.length + 1) } function zPosition(v) { if (bounds.zmin <= 0 && bounds.zmax >= 0) { const extent = Math.max(Math.abs(bounds.zmin), Math.abs(bounds.zmax), 1e-9); return v / extent * 14 } return map(v, bounds.zmin, bounds.zmax, 0, 14) }
+        function setObjectOpacity(object, factor) {
+            if (!object) return;
+            object.traverse(node => {
+                if (!node.material) return;
+                const materials = Array.isArray(node.material) ? node.material : [node.material];
+                materials.forEach(material => {
+                    if (material.userData.baseOpacity === undefined) material.userData.baseOpacity = material.opacity;
+                    material.transparent = true;
+                    material.opacity = material.userData.baseOpacity * factor;
+                });
+            });
+        }
+        function ensureAdaptiveZBounds() {
+            if (!bounds || bounds.adaptiveZApplied) return;
+            bounds.adaptiveZApplied = true;
+            if (spec.value === "全部" && speed.value === "全部") return;
+            const values = [];
+            if (viewMode === "overview" && overviewPayload) {
+                const conditionCount = overviewPayload.conditions.length;
+                for (let metadataIndex = 0; metadataIndex < overviewPayload.metadata.length; metadataIndex++) {
+                    const offset = metadataIndex * conditionCount;
+                    currentRows.forEach(row => {
+                        const value = Number(overviewPayload.upperValues[offset + row.overviewIndex]);
+                        if (Number.isFinite(value)) values.push(value);
+                    });
+                }
+            } else {
+                currentRows.forEach(row => {
+                    if (Number.isFinite(Number(row.lower))) values.push(Number(row.lower));
+                    if (Number.isFinite(Number(row.upper))) values.push(Number(row.upper));
+                    if (viewMode === "compare" && !boundsOnlyActive) {
+                        const actual = actualFor(row);
+                        if (actual && Number.isFinite(Number(actual.lower))) values.push(Number(actual.lower));
+                        if (actual && Number.isFinite(Number(actual.upper))) values.push(Number(actual.upper));
+                    }
+                });
+            }
+            if (!values.length) return;
+            let minimum = Infinity, maximum = -Infinity;
+            values.forEach(value => {
+                if (value < minimum) minimum = value;
+                if (value > maximum) maximum = value;
+            });
+            const padding = Math.max((maximum - minimum) * .08, Math.max(Math.abs(minimum), Math.abs(maximum)) * .015, 1);
+            bounds.zmin = minimum - padding;
+            bounds.zmax = maximum + padding;
+        }
+        function map(v, a, b, A, B) { return b === a ? (A + B) / 2 : A + (v - a) * (B - A) / (b - a) }
+        function xPosition(v) { if (Math.abs(v) < 1e-9) return xMin; if (xDataMin > 0 && v >= xDataMin) return map(v, xDataMin, xDataMax, xMin + 2.2, xMax); return map(v, bounds.xmin, bounds.xmax, xMin, xMax) }
+        function yPosition(v) { const index = ySlots.indexOf(v); return index < 0 ? 0 : 12 - (index + 1) * 24 / (ySlots.length + 1) }
+        function zPosition(v) { ensureAdaptiveZBounds(); if (bounds.zmin <= 0 && bounds.zmax >= 0) { const extent = Math.max(Math.abs(bounds.zmin), Math.abs(bounds.zmax), 1e-9); return v / extent * 14 } return map(v, bounds.zmin, bounds.zmax, 0, 14) }
         let selectionOverlayData = null;
-        function overlayPoint(d, value) {
-            const projected = new THREE.Vector3(xPosition(d.speed), zPosition(value), yPosition(d.y)).project(camera);
+        function overlayPoint(d, value, flat = 0) {
+            const height = zPosition(value) * (1 - flat) + .12 * flat;
+            const projected = new THREE.Vector3(xPosition(d.speed), height, yPosition(d.y)).project(camera);
             return { x: (projected.x + 1) * canvas.clientWidth / 2, y: (1 - projected.y) * canvas.clientHeight / 2 };
         }
-        function positionOverlayRange(line, lowerDot, upperDot, d, range) {
-            const lower = overlayPoint(d, range.lower), upper = overlayPoint(d, range.upper);
+        function positionOverlayRange(line, lowerDot, upperDot, d, range, flat = 0) {
+            const lower = overlayPoint(d, range.lower, flat), upper = overlayPoint(d, range.upper, flat);
             line.setAttribute("x1", lower.x); line.setAttribute("y1", lower.y);
             line.setAttribute("x2", upper.x); line.setAttribute("y2", upper.y);
             lowerDot.setAttribute("cx", lower.x); lowerDot.setAttribute("cy", lower.y);
@@ -625,12 +749,13 @@
         function updateSelectionOverlay() {
             if (!selectionOverlayData || !bounds) { selectionOverlayGroup.style.display = "none"; distributionSelection.style.display = "none"; return }
             const { d, actual } = selectionOverlayData;
-            if (dimensionMode === "2d") {
+            const flat = dimensionTransitionFlat === null ? (dimensionMode === "2d" ? 1 : 0) : dimensionTransitionFlat;
+            if (flat >= .999) {
                 selectionOverlayGroup.style.display = "none";
                 const point = new THREE.Vector3(xPosition(d.speed), .12, yPosition(d.y)).project(camera);
                 distributionSelection.setAttribute("cx", (point.x + 1) * canvas.clientWidth / 2);
                 distributionSelection.setAttribute("cy", (1 - point.y) * canvas.clientHeight / 2);
-                const color = viewMode === "overview" ? "#f59e0b" : viewMode === "compare" ? (isAbnormal(d, actual) ? "#dc2626" : "#16a34a") : "#2563eb";
+                const color = viewMode === "overview" ? "#2563eb" : viewMode === "compare" ? (isAbnormal(d, actual) ? "#dc2626" : "#16a34a") : "#2563eb";
                 distributionSelection.setAttribute("fill", color);
                 distributionSelection.setAttribute("stroke", "#ffffff");
                 distributionSelection.style.display = "";
@@ -639,16 +764,20 @@
             distributionSelection.style.display = "none";
             selectionOverlayGroup.style.display = "";
             if (viewMode === "overview") {
-                const upper = overlayPoint(d, d.upper);
+                const upper = overlayPoint(d, d.upper, flat);
                 standardOverlayLine.style.display = standardOverlayLower.style.display = "none";
                 standardOverlayUpper.style.display = "";
+                standardOverlayUpper.setAttribute("fill", "#2563eb");
+                standardOverlayUpper.setAttribute("r", "3");
                 standardOverlayUpper.setAttribute("cx", upper.x);
                 standardOverlayUpper.setAttribute("cy", upper.y);
                 actualOverlayLine.style.display = actualOverlayLower.style.display = actualOverlayUpper.style.display = "none";
                 return;
             }
+            standardOverlayUpper.setAttribute("fill", "#2563eb");
+            standardOverlayUpper.setAttribute("r", "2");
             standardOverlayLine.style.display = standardOverlayLower.style.display = standardOverlayUpper.style.display = "";
-            positionOverlayRange(standardOverlayLine, standardOverlayLower, standardOverlayUpper, d, { lower: d.lower, upper: d.upper });
+            positionOverlayRange(standardOverlayLine, standardOverlayLower, standardOverlayUpper, d, { lower: d.lower, upper: d.upper }, flat);
             const showActual = actual && timeComparisonVisible();
             actualOverlayLine.style.display = actualOverlayLower.style.display = actualOverlayUpper.style.display = showActual ? "" : "none";
             if (showActual) {
@@ -656,7 +785,7 @@
                 actualOverlayLine.setAttribute("stroke", color);
                 actualOverlayLower.setAttribute("fill", color);
                 actualOverlayUpper.setAttribute("fill", color);
-                positionOverlayRange(actualOverlayLine, actualOverlayLower, actualOverlayUpper, d, actual);
+                positionOverlayRange(actualOverlayLine, actualOverlayLower, actualOverlayUpper, d, actual, flat);
             }
         }
         function flatXPosition(value) {
@@ -677,8 +806,8 @@
             const positions = [], colors = [];
             currentRows.forEach(d => {
                 positions.push(xPosition(d.speed), .12, yPosition(d.y));
-                let color = blue;
-                if (viewMode === "compare") {
+                let color = viewMode === "overview" ? lightBlue : blue;
+                if (viewMode === "compare" && !boundsOnlyActive) {
                     const actual = actualFor(d);
                     color = isAbnormal(d, actual) ? new THREE.Color(0xdc2626) : new THREE.Color(0x16a34a);
                 }
@@ -698,6 +827,19 @@
             distributionPoints = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 4, sizeAttenuation: false, vertexColors: true, map: pointTexture, alphaTest: .35, transparent: true, opacity: dimensionMode === "2d" ? 1 : 0, depthTest: false, depthWrite: false }));
             distributionPoints.renderOrder = 25;
             root.add(distributionPoints);
+        }
+        function updateDistributionPointColors() {
+            const colors = distributionPoints?.geometry.attributes.color;
+            if (!colors) return;
+            currentRows.forEach((d, index) => {
+                let color = viewMode === "overview" ? lightBlue : blue;
+                if (viewMode === "compare" && !boundsOnlyActive) {
+                    const actual = actualFor(d);
+                    color = isAbnormal(d, actual) ? new THREE.Color(0xdc2626) : new THREE.Color(0x16a34a);
+                }
+                colors.setXYZ(index, color.r, color.g, color.b);
+            });
+            colors.needsUpdate = true;
         }
         function buildOverviewPointCloud() {
             overviewPointCloud = null;
@@ -736,13 +878,13 @@
             overviewPointCloud = new THREE.Points(
                 geometry,
                 new THREE.PointsMaterial({
-                    color: 0x2563eb,
+                    color: 0x93c5fd,
                     size: 2,
                     sizeAttenuation: false,
                     map: pointTexture,
                     alphaTest: .08,
                     transparent: true,
-                    opacity: .9,
+                    opacity: metadataSceneBuildMode === "to-overview" ? 0 : .9,
                     depthWrite: false,
                 })
             );
@@ -760,7 +902,8 @@
             selectedContext.fill();
             const selectedTexture = new THREE.CanvasTexture(selectedCanvas);
             const selectedGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0)]);
-            selectedOverviewPoint = new THREE.Points(selectedGeometry, new THREE.PointsMaterial({ color: 0x1d4ed8, size: 5, sizeAttenuation: false, map: selectedTexture, alphaTest: .3, transparent: true, depthTest: false, depthWrite: false }));
+            selectedGeometry.setDrawRange(0, 0);
+            selectedOverviewPoint = new THREE.Points(selectedGeometry, new THREE.PointsMaterial({ color: 0x2563eb, size: 5, sizeAttenuation: false, map: selectedTexture, alphaTest: .3, transparent: true, depthTest: false, depthWrite: false }));
             selectedOverviewPoint.visible = false;
             selectedOverviewPoint.frustumCulled = false;
             selectedOverviewPoint.renderOrder = 40;
@@ -817,7 +960,7 @@
                 addLabel(flatLabelGroup, row.yLabel.replace("｜", " · "), new THREE.Vector3(xMin - .62, .05, yPosition(value)), .52, "#475569", 600);
             });
         }
-        function dimensionLayers() { return [segments, lowerPoints, upperPoints, overviewPointCloud, actualNormal, actualAbnormal, ...actualPointLayers].filter(Boolean) }
+        function dimensionLayers() { return [segments, lowerPoints, upperPoints, overviewPointCloud, selectedOverviewPoint, actualNormal, actualAbnormal, ...actualPointLayers].filter(Boolean) }
         function setDimensionScale(value) { dimensionLayers().forEach(layer => { layer.scale.y = value }) }
         function updateDimensionUi() {
             const is2d = dimensionMode === "2d";
@@ -829,7 +972,7 @@
             standardRangeLegend.style.display = is2d || viewMode === "overview" ? "none" : "";
             standardDotsLegend.style.display = selectionLegend.style.display = is2d ? "none" : "";
             standardDotsLegend.innerHTML = viewMode === "overview"
-                ? '<span class="dot" style="background:#2563eb"></span>全部元数据上限标准'
+                ? '<span class="dot" style="background:#93c5fd"></span>全部元数据上限标准'
                 : '<span class="dot" style="background:#2563eb"></span>标准下限 <span id="standardUpperLegendDot" class="dot" style="background:#e11d48"></span>标准上限';
             if (is2d) {
                 document.getElementById("actualNormalLegend").style.display = "none";
@@ -837,7 +980,7 @@
                 distributionLegend.style.display = "";
                 distributionLegend.innerHTML = viewMode === "compare"
                     ? '<span class="dot" style="background:#16a34a"></span>未超限点位　<span class="dot" style="background:#dc2626"></span>超限点位'
-                    : `<span class="dot" style="background:#2563eb"></span>${viewMode === "overview" ? "元数据上限点" : "工艺点位"}`;
+                    : `<span class="dot" style="background:${viewMode === "overview" ? "#93c5fd" : "#2563eb"}"></span>${viewMode === "overview" ? "元数据上限点" : "工艺点位"}`;
                 boundsOnlyReset.style.display = "none";
                 document.getElementById("title").textContent = (metadata.selectedOptions[0]?.textContent || "元数据") + "点位分布";
             } else {
@@ -882,9 +1025,11 @@
             updateDimensionStats();
             updateSelectionOverlay();
         }
-        function switchDimension(nextMode) {
-            if (dimensionAnimating || nextMode === dimensionMode || !segments) return;
-            clearSelection();
+        function switchDimension(nextMode, options = {}) {
+            const preserveSelection = Boolean(options.preserveSelection);
+            const fadeOverviewIn = Boolean(options.fadeOverviewIn);
+            if (dimensionAnimating || nextMode === dimensionMode || !segments) return Promise.resolve(false);
+            if (!preserveSelection) clearSelection();
             dimensionAnimating = true;
             controls.enabled = false;
             const going2d = nextMode === "2d";
@@ -907,12 +1052,18 @@
             const toTarget = going2d ? new THREE.Vector3(0, 0, 0) : (saved3dCamera?.target || new THREE.Vector3(0, 5.2, 0));
             const toUp = going2d ? new THREE.Vector3(0, 0, -1) : (saved3dCamera?.up || new THREE.Vector3(0, 1, 0));
             const start = performance.now(), duration = 700;
-            if (distributionPoints) distributionPoints.material.opacity = going2d ? 0 : 1;
-            function step(now) {
+            const distributionOpacity = preserveSelection ? .42 : 1;
+            const overviewTargetOpacity = fadeOverviewIn && overviewPointCloud ? overviewPointCloud.material.opacity : null;
+            if (overviewTargetOpacity !== null) overviewPointCloud.material.opacity = 0;
+            if (distributionPoints) distributionPoints.material.opacity = going2d ? 0 : distributionOpacity;
+            return new Promise(resolve => { function step(now) {
                 const raw = Math.min(1, (now - start) / duration), t = raw < .5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
                 const flat = going2d ? t : 1 - t;
+                dimensionTransitionFlat = flat;
                 setDimensionScale(1 - flat);
-                if (distributionPoints) distributionPoints.material.opacity = flat;
+                const pointLayerFlat = viewMode === "overview" && going2d ? Math.max(0, (flat - .72) / .28) : flat;
+                if (distributionPoints) distributionPoints.material.opacity = pointLayerFlat * distributionOpacity;
+                if (overviewTargetOpacity !== null && overviewPointCloud) overviewPointCloud.material.opacity = overviewTargetOpacity * t;
                 camera.position.lerpVectors(fromPosition, toPosition, t);
                 controls.target.lerpVectors(fromTarget, toTarget, t);
                 camera.up.lerpVectors(fromUp, toUp, t).normalize();
@@ -921,6 +1072,7 @@
                 if (raw < 1) requestAnimationFrame(step);
                 else {
                     dimensionMode = nextMode;
+                    dimensionTransitionFlat = null;
                     dimensionAnimating = false;
                     controls.enabled = true;
                     controls.enableRotate = !going2d;
@@ -942,14 +1094,17 @@
                     }
                     updateDimensionUi();
                     updateDimensionStats();
+                    if (preserveSelection && selectedRowData) selectRow(currentRows.indexOf(selectedRowData), "gold", selectedRowData);
                     render();
+                    resolve(true);
                 }
             }
-            requestAnimationFrame(step);
+            requestAnimationFrame(step); });
         }
         const buildThreeDimensionalScene = build;
         build = function () {
             buildThreeDimensionalScene();
+            applyMetadataBuildTransitionState();
             distributionPoints = null;
             if (!currentRows.length || !bounds) return;
             buildOverviewPointCloud();
@@ -997,6 +1152,14 @@
         }
         function sprite(text, color = "#64748b", size = 30, weight = 550) { const dpr = 4, c = document.createElement("canvas"), ctx = c.getContext("2d"), font = `${weight} ${size}px "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif`; ctx.font = font; const logicalW = Math.ceil(ctx.measureText(text).width) + 18, logicalH = size + 16; c.width = logicalW * dpr; c.height = logicalH * dpr; ctx.scale(dpr, dpr); ctx.font = font; ctx.fillStyle = color; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, logicalW / 2, logicalH / 2); const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.encoding = THREE.sRGBEncoding; const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false }); const s = new THREE.Sprite(mat); s.scale.set(logicalW / size * 1.02, 1.02, 1); return s }
         function addLabel(group, text, pos, scale = .7, color = "#64748b", weight = 500) { if (viewMode === "overview" && text === "Z：上下限值") text = "Z：上限标准值"; const isZeroTick = text === "0" && color === "#0f172a", labelColor = isZeroTick ? "#e11d48" : color, labelPos = isZeroTick ? new THREE.Vector3(xMin, -.62, 12) : pos, s = sprite(text, labelColor, 28, weight); s.position.copy(labelPos); s.scale.multiplyScalar(scale / 40); group.add(s); return s }
+        function applyMetadataBuildTransitionState() {
+            if (!metadataSceneBuildMode) return;
+            if (segments) segments.material.opacity = 0;
+            if (lowerPoints) lowerPoints.material.opacity = 0;
+            if (upperPoints) upperPoints.material.opacity = 0;
+            setObjectOpacity(gridGroup, 0);
+            setObjectOpacity(labelGroup, 0);
+        }
         function buildAxes(rows) { gridGroup = new THREE.Group(); labelGroup = new THREE.Group(); root.add(gridGroup, labelGroup); const gridMat = new THREE.LineBasicMaterial({ color: 0xd7dee8, transparent: true, opacity: .56 }), axisMat = new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: .9 }), pts = [], axisYMin = Math.min(0, zPosition(bounds.zmin)), axisYMax = Math.max(0, zPosition(bounds.zmax)); for (let i = 0; i <= 5; i++) { const x = xMin + i * (xMax - xMin) / 5; pts.push(x, 0, -12, x, 0, 12); const z = -12 + i * 4.8; pts.push(xMin, 0, z, xMax, 0, z) } for (let i = 1; i <= 5; i++) { const y = axisYMin + i * (axisYMax - axisYMin) / 5; if (Math.abs(y) < 1e-9) continue; pts.push(xMin, y, -12, xMax, y, -12, xMin, y, -12, xMin, y, 12) } const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); gridGroup.add(new THREE.LineSegments(g, gridMat)); const ag = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12), new THREE.Vector3(xMax + 1, 0, 12), new THREE.Vector3(xMin, 0, -12), new THREE.Vector3(xMin, 0, 13), new THREE.Vector3(xMin, axisYMin, 12), new THREE.Vector3(xMin, axisYMax, 12)]); gridGroup.add(new THREE.LineSegments(ag, axisMat)); const originCanvas = document.createElement("canvas"); originCanvas.width = 64; originCanvas.height = 64; const originContext = originCanvas.getContext("2d"); originContext.fillStyle = "#111827"; originContext.beginPath(); originContext.arc(32, 32, 30, 0, Math.PI * 2); originContext.fill(); const originTexture = new THREE.CanvasTexture(originCanvas), originGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12)]), originPoint = new THREE.Points(originGeometry, new THREE.PointsMaterial({ color: 0xffffff, map: originTexture, alphaTest: .5, transparent: true, size: 7, sizeAttenuation: false, depthTest: false, depthWrite: false })); originPoint.renderOrder = 20; gridGroup.add(originPoint); addLabel(labelGroup, "X：拉速", new THREE.Vector3(xMax + 1.6, -.75, 12.2), .52, "#1e293b", 650); addLabel(labelGroup, "Y：钢种＋宽度", new THREE.Vector3(xMin, -1.45, -13.5), .5, "#1e293b", 650); addLabel(labelGroup, "Z：上下限值", new THREE.Vector3(xMin - .7, axisYMax + 1.5, 12.2), .5, "#1e293b", 650); const actualSpeeds = [...new Set(rows.map(d => d.speed))].sort((a, b) => a - b), minorMin = Math.ceil(xDataMin * 100) / 100, minorMax = Math.floor(bounds.xmax * 100) / 100, minorSpeeds = Array.from({ length: Math.round((minorMax - minorMin) * 100) + 1 }, (_, i) => Number((minorMin + i / 100).toFixed(2))), labelMin = Math.ceil(xDataMin * 20) / 20, labelMax = Math.floor(bounds.xmax * 20) / 20, labelSpeeds = Array.from({ length: Math.round((labelMax - labelMin) * 20) + 1 }, (_, i) => Number((labelMin + i / 20).toFixed(2))), speedTickPts = [xMin, 0, 12, xMin, 0, 12.3]; const breakX = xMin + 1.1; speedTickPts.push(breakX - .18, -.06, 11.82, breakX + .02, .18, 12.18, breakX + .12, -.06, 11.82, breakX + .32, .18, 12.18); minorSpeeds.forEach(v => { const x = xPosition(v); speedTickPts.push(x, 0, 12, x, 0, 12.13) }); labelSpeeds.forEach(v => { const x = xPosition(v); if (Math.abs(v) > 1e-9) { const tick = addLabel(labelGroup, displaySpeed(v), new THREE.Vector3(x, -1.02, 12.65), .55, "#475569", 600); tick.material.rotation = Math.PI / 2 } speedTickPts.push(x, 0, 12, x, 0, 12.3) }); const speedTickGeo = new THREE.BufferGeometry(); speedTickGeo.setAttribute("position", new THREE.Float32BufferAttribute(speedTickPts, 3)); gridGroup.add(new THREE.LineSegments(speedTickGeo, new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: .65 }))); const zRange = bounds.zmax - bounds.zmin, zTicks = []; for (let i = 0; i < 5; i++) { const t = i / 4, v = bounds.zmin + t * zRange; zTicks.push({ v, y: zPosition(v), zero: false }) } if (bounds.zmin <= 0 && bounds.zmax >= 0) { const zeroIdx = zTicks.findIndex(t => Math.abs(t.v) <= zRange * .04); if (zeroIdx >= 0) { zTicks[zeroIdx].v = 0; zTicks[zeroIdx].zero = true } else { zTicks.push({ v: 0, y: 0, zero: true }) } } zTicks.forEach(t => { addLabel(labelGroup, t.zero ? "0" : Number(t.v.toPrecision(4)).toString(), new THREE.Vector3(t.zero ? xMin : xMin - .72, t.y, t.zero ? 12 : 12.35), t.zero ? .62 : .58, t.zero ? "#0f172a" : "#475569", t.zero ? 700 : 600) }); const ys = [...new Set(rows.map(d => d.y))].sort((a, b) => a - b), count = Math.min(6, ys.length), chosen = []; for (let i = 0; i < count; i++) { const idx = count === 1 ? 0 : Math.round(i * (ys.length - 1) / (count - 1)); if (!chosen.includes(ys[idx])) chosen.push(ys[idx]) } chosen.forEach(v => { const d = rows.find(r => r.y === v), z = yPosition(v); addLabel(labelGroup, d.yLabel.replace("｜", " · "), new THREE.Vector3(xMin - .62, -.68, z), .52, "#475569", 600) }) } function build() { document.getElementById("loading").style.display = "flex"; disposeObject(root); actualPointLayers = []; currentRows = filtered(); const axisRows = standardFiltered(); const positiveSpeeds = axisRows.map(d => Number(d.speed)).filter(v => v > 0); xDataMin = positiveSpeeds.length ? Math.min(...positiveSpeeds) : 0; xDataMax = Math.max(...axisRows.map(d => Number(d.speed))); ySlots = [...new Set(axisRows.map(d => d.y))].sort((a, b) => a - b); updateStats(); detail.style.display = "none"; if (!currentRows.length || !axisRows.length) { document.getElementById("loading").textContent = "没有符合条件的数据"; return } bounds = { xmin: Math.min(0, ...axisRows.map(d => d.speed)), xmax: Math.max(...axisRows.map(d => d.speed)), ymin: Math.min(...axisRows.map(d => d.y)), ymax: Math.max(...axisRows.map(d => d.y)), zmin: Math.min(0, ...axisRows.map(d => d.lower)), zmax: Math.max(...axisRows.map(d => d.upper)) }; if (bounds.zmin === bounds.zmax) bounds.zmax = bounds.zmin + 1; const linePos = [], lowPos = [], upPos = []; currentRows.forEach(d => { const x = xPosition(d.speed), z = yPosition(d.y), lo = zPosition(d.lower), hi = zPosition(d.upper); linePos.push(x, lo, z, x, hi, z); lowPos.push(x, lo, z); upPos.push(x, hi, z) }); const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePos, 3)); segments = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: blue, transparent: true, opacity: 1 })); segments.userData.kind = "line"; root.add(segments); const lowGeo = new THREE.BufferGeometry(); lowGeo.setAttribute("position", new THREE.Float32BufferAttribute(lowPos, 3)); lowerPoints = new THREE.Points(lowGeo, new THREE.PointsMaterial({ color: blue, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); lowerPoints.userData.kind = "lower"; root.add(lowerPoints); const upGeo = new THREE.BufferGeometry(); upGeo.setAttribute("position", new THREE.Float32BufferAttribute(upPos, 3)); upperPoints = new THREE.Points(upGeo, new THREE.PointsMaterial({ color: red, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); upperPoints.userData.kind = "upper"; root.add(upperPoints); const normalPos = [], abnormalPos = [], normalRows = [], abnormalRows = []; if (viewMode === "compare") currentRows.forEach(d => { const a = actualFor(d); if (!a) return; const x = xPosition(d.speed), z = yPosition(d.y), abnormal = isAbnormal(d, a), target = abnormal ? abnormalPos : normalPos, targetRows = abnormal ? abnormalRows : normalRows; target.push(x, zPosition(a.lower), z, x, zPosition(a.upper), z); targetRows.push(d) }); function addActualLayer(positions, rows, color, kind) { if (!positions.length) return null; const geometry = new THREE.BufferGeometry(); geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const layer = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 })); layer.userData = { kind, rows }; root.add(layer); const pointGeometry = new THREE.BufferGeometry(); pointGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const pointLayer = new THREE.Points(pointGeometry, new THREE.PointsMaterial({ color, size: 4, sizeAttenuation: false })); pointLayer.visible = !boundsOnlyActive; actualPointLayers.push(pointLayer); root.add(pointLayer); layer.visible = !boundsOnlyActive; return layer } actualNormal = addActualLayer(normalPos, normalRows, 0x16a34a, "actualNormal"); actualAbnormal = addActualLayer(abnormalPos, abnormalRows, 0xdc2626, "actualAbnormal"); const hg = new THREE.BufferGeometry(); hg.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); highlightLine = new THREE.LineSegments(hg, new THREE.LineBasicMaterial({ color: orange, linewidth: 3, transparent: true, opacity: 0 })); root.add(highlightLine); const hp = new THREE.BufferGeometry(); hp.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); hp.setAttribute("color", new THREE.Float32BufferAttribute([blue.r, blue.g, blue.b, red.r, red.g, red.b], 3)); const dotCanvas = document.createElement("canvas"); dotCanvas.width = 64; dotCanvas.height = 64; const dotContext = dotCanvas.getContext("2d"); dotContext.fillStyle = "#ffffff"; dotContext.beginPath(); dotContext.arc(32, 32, 30, 0, Math.PI * 2); dotContext.fill(); const dotTexture = new THREE.CanvasTexture(dotCanvas); highlightPoints = new THREE.Points(hp, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, map: dotTexture, alphaTest: .1, depthWrite: false, transparent: true, opacity: 0 })); root.add(highlightPoints); buildAxes(axisRows); document.getElementById("loading").style.display = "none"; render() }
         function updateStats() {
             document.getElementById("title").textContent = viewMode === "overview" ? "全部元数据上限总览" : (metadata.selectedOptions[0]?.textContent || "元数据") + "上下限";
@@ -1050,6 +1213,7 @@
             const d = recordOverride || currentRows[i];
             if (!d) return;
             selectedRowData = d;
+            if (overviewReturnPoint && viewMode !== "overview") overviewReturnPoint = { ...d };
 
             segments.material.opacity = .14;
             lowerPoints.material.opacity = .18;
@@ -1057,17 +1221,19 @@
             if (actualNormal) actualNormal.material.opacity = .14;
             if (actualAbnormal) actualAbnormal.material.opacity = .14;
             actualPointLayers.forEach(layer => { layer.material.transparent = true; layer.material.opacity = .18 });
-            if (distributionPoints) distributionPoints.material.opacity = dimensionMode === "2d" ? .38 : 0;
+            if (distributionPoints) distributionPoints.material.opacity = dimensionMode === "2d" ? .42 : 0;
 
             const actual = timeComparisonVisible() ? actualFor(d) : null;
             const x = xPosition(d.speed), z = yPosition(d.y);
             const standardPositions = viewMode === "overview" ? [x, zPosition(d.upper), z, x, zPosition(d.upper), z] : [x, zPosition(d.lower), z, x, zPosition(d.upper), z];
             if (viewMode === "overview" && dimensionMode === "3d" && overviewPointCloud && selectedOverviewPoint) {
-                overviewPointCloud.material.opacity = .12;
+                overviewPointCloud.material.opacity = .22;
                 selectedOverviewPoint.geometry.attributes.position.array.set(standardPositions.slice(0, 3));
                 selectedOverviewPoint.geometry.attributes.position.needsUpdate = true;
+                selectedOverviewPoint.geometry.setDrawRange(0, 1);
                 selectedOverviewPoint.visible = true;
             } else if (selectedOverviewPoint) {
+                selectedOverviewPoint.geometry.setDrawRange(0, 0);
                 selectedOverviewPoint.visible = false;
             }
             highlightLine.material.depthTest = false;
@@ -1122,7 +1288,7 @@
                 ? `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>上限标准：${Number(d.upper).toPrecision(6)}${metadataButtonHtml()}`
                 : dimensionMode === "2d"
                 ? `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}${pointStatus}${drillButtonHtml()}`
-                : `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}${drillButtonHtml()}`;
+                : `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}${drillButtonHtml()}${overviewReturnButtonHtml()}`;
             detail.style.display = "block";
             render();
         }
@@ -1138,7 +1304,10 @@
             actualPointLayers.forEach(layer => { layer.material.opacity = 1 });
             if (distributionPoints) distributionPoints.material.opacity = dimensionMode === "2d" ? 1 : 0;
             if (overviewPointCloud) overviewPointCloud.material.opacity = .9;
-            if (selectedOverviewPoint) selectedOverviewPoint.visible = false;
+            if (selectedOverviewPoint) {
+                selectedOverviewPoint.geometry.setDrawRange(0, 0);
+                selectedOverviewPoint.visible = false;
+            }
             highlightLine.material.opacity = 0;
             highlightPoints.material.opacity = 0;
             if (selectedActualLine) selectedActualLine.material.opacity = 0;
@@ -1262,7 +1431,7 @@
             selectRow(currentRows.indexOf(hit.d), hit.source);
         }
         function showTip(e, d) { if (!d) { tooltip.style.display = "none"; return } const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; const isFlatOverview = viewMode === "overview" && dimensionMode === "2d"; const limits = isFlatOverview ? `<br>包含上限点：${overviewConditionPointCount(d.overviewIndex).toLocaleString()} 个` : viewMode === "overview" ? `<br>上限标准：${Number(d.upper).toPrecision(6)}` : `<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}`; const title = isFlatOverview ? "生产条件点位" : d.metadata; tooltip.innerHTML = `<b>${title}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}${limits}`; const r = view.getBoundingClientRect(), maxX = r.width - 310, maxY = r.height - 90; tooltip.style.left = Math.max(0, Math.min(maxX, e.clientX - r.left)) + "px"; tooltip.style.top = Math.max(0, Math.min(maxY, e.clientY - r.top)) + "px"; tooltip.style.display = "block" }
-        let hoverFrame = 0, suppressSelectionClick = false;
+        let hoverFrame = 0, overviewHoverTimer = 0, lastOverviewHoverAt = 0, suppressSelectionClick = false;
         canvas.addEventListener("pointerdown", e => {
             tooltip.style.display = "none";
             downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
@@ -1285,11 +1454,35 @@
             const x = e.clientX, y = e.clientY;
             hoverFrame = requestAnimationFrame(() => {
                 hoverFrame = 0;
-                const hit = rowAt({ clientX: x, clientY: y });
-                showTip({ clientX: x, clientY: y }, hit ? hit.d : null);
+                const pointerEvent = { clientX: x, clientY: y };
+                let hovered = null;
+                if (viewMode === "overview" && dimensionMode === "3d") {
+                    const now = performance.now();
+                    if (now - lastOverviewHoverAt < 90) {
+                        clearTimeout(overviewHoverTimer);
+                        overviewHoverTimer = setTimeout(() => {
+                            overviewHoverTimer = 0;
+                            lastOverviewHoverAt = performance.now();
+                            const candidates = overviewPointsAt(pointerEvent);
+                            showTip(pointerEvent, candidates.length ? overviewRecordAt(candidates[0].pointIndex) : null);
+                        }, 90 - (now - lastOverviewHoverAt));
+                        return;
+                    }
+                    lastOverviewHoverAt = now;
+                    const candidates = overviewPointsAt(pointerEvent);
+                    hovered = candidates.length ? overviewRecordAt(candidates[0].pointIndex) : null;
+                } else {
+                    const hit = rowAt(pointerEvent);
+                    hovered = hit ? hit.d : null;
+                }
+                showTip(pointerEvent, hovered);
             });
         });
-        canvas.addEventListener("pointerleave", () => { tooltip.style.display = "none" });
+        canvas.addEventListener("pointerleave", () => {
+            clearTimeout(overviewHoverTimer);
+            overviewHoverTimer = 0;
+            tooltip.style.display = "none";
+        });
         canvas.addEventListener("dblclick", e => {
             e.preventDefault();
             tooltip.style.display = "none";
@@ -1393,20 +1586,306 @@
             }
             openDrilldown(selected);
         }
-        async function openSelectedMetadata() {
-            const code = selectedRowData?.metadataCode;
-            if (!code || !metadataCatalog.some(row => row.code === code)) return;
-            metadata.value = code;
-            closeDrilldown();
+        function animateTransition(duration, update) {
+            return new Promise(resolve => {
+                const started = performance.now();
+                function step(now) {
+                    const raw = Math.min(1, (now - started) / duration);
+                    const eased = raw < .5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
+                    update(eased);
+                    render();
+                    if (raw < 1) requestAnimationFrame(step); else resolve();
+                }
+                requestAnimationFrame(step);
+            });
+        }
+        function createOverviewMetadataLayer(code) {
+            if (!overviewPayload || !overviewPointCloud) return null;
+            const metadataIndex = overviewPayload.metadata.findIndex(row => row.code === code);
+            if (metadataIndex < 0) return null;
+            const conditionCount = overviewPayload.conditions.length;
+            const positions = [];
+            overviewPayload.conditions.forEach((condition, conditionIndex) => {
+                const value = overviewPayload.upperValues[metadataIndex * conditionCount + conditionIndex];
+                if (value === null || !Number.isFinite(Number(value))) return;
+                positions.push(xPosition(condition.speed), zPosition(Number(value)), yPosition(condition.y));
+            });
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+            const pointMap = overviewPointCloud.material.map?.clone() || null;
+            if (pointMap) pointMap.needsUpdate = true;
+            const material = new THREE.PointsMaterial({
+                color: 0x2563eb,
+                size: 2,
+                sizeAttenuation: false,
+                map: pointMap,
+                alphaTest: .08,
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+            });
+            const layer = new THREE.Points(geometry, material);
+            layer.renderOrder = 25;
+            scene.add(layer);
+            return layer;
+        }
+        function removeTemporaryLayer(layer) {
+            if (!layer) return;
+            scene.remove(layer);
+            layer.geometry.dispose();
+            if (layer.material.map) layer.material.map.dispose();
+            layer.material.dispose();
+        }
+        function createTemporaryUpperLayer(positionArray) {
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute("position", new THREE.Float32BufferAttribute(Array.from(positionArray), 3));
+            const pointCanvas = document.createElement("canvas");
+            pointCanvas.width = pointCanvas.height = 64;
+            const context = pointCanvas.getContext("2d");
+            context.fillStyle = "#fff";
+            context.beginPath();
+            context.arc(32, 32, 29, 0, Math.PI * 2);
+            context.fill();
+            const map = new THREE.CanvasTexture(pointCanvas);
+            const material = new THREE.PointsMaterial({ color: 0x2563eb, size: 2, sizeAttenuation: false, map, alphaTest: .08, transparent: true, opacity: 1, depthWrite: false });
+            const layer = new THREE.Points(geometry, material);
+            layer.renderOrder = 26;
+            scene.add(layer);
+            return layer;
+        }
+        async function selectMetadataFromOverview() {
+            const code = metadata.value;
+            const item = metadataCatalog.find(row => row.code === code);
+            if (!item || metadataSwitchAnimating) return;
+            metadataSwitchAnimating = true;
+            metadata.disabled = true;
+            controls.enabled = false;
+            const sourceCloud = overviewPointCloud;
+            const sourceOpacity = sourceCloud?.material.opacity ?? .9;
+            const selectedLayer = createOverviewMetadataLayer(code);
+            let previousAxes = null;
             try {
+                await animateTransition(520, t => {
+                    if (sourceCloud) sourceCloud.material.opacity = sourceOpacity * (1 - t);
+                    if (selectedLayer) selectedLayer.material.opacity = .9 * t;
+                });
+                const metadataIndex = overviewPayload.metadata.findIndex(row => row.code === code);
+                const overviewUpperByCondition = new Map();
+                if (metadataIndex >= 0) overviewPayload.conditions.forEach((condition, conditionIndex) => {
+                    const value = overviewPayload.upperValues[metadataIndex * overviewPayload.conditions.length + conditionIndex];
+                    if (value === null || !Number.isFinite(Number(value))) return;
+                    const key = [condition.steel, Number(condition.width), Number(condition.speed).toFixed(2), condition.mode].join("|");
+                    overviewUpperByCondition.set(key, [xPosition(condition.speed), zPosition(Number(value)), yPosition(condition.y)]);
+                });
+                previousAxes = new THREE.Group();
+                if (gridGroup) {
+                    root.remove(gridGroup);
+                    previousAxes.add(gridGroup);
+                }
+                if (labelGroup) {
+                    root.remove(labelGroup);
+                    previousAxes.add(labelGroup);
+                }
+                scene.add(previousAxes);
+                metadataSceneBuildMode = "to-standard";
                 await loadStandards();
+                metadataSceneBuildMode = null;
+                const finalLines = segments.geometry.attributes.position.array.slice();
+                const finalLower = lowerPoints.geometry.attributes.position.array.slice();
+                const linePositions = segments.geometry.attributes.position.array;
+                const lowerPositions = lowerPoints.geometry.attributes.position.array;
+                const upperPositions = upperPoints.geometry.attributes.position.array;
+                setObjectOpacity(gridGroup, 0);
+                setObjectOpacity(labelGroup, 0);
+                const sourceMatched = [], targetMatched = [];
+                currentRows.forEach((row, index) => {
+                    const key = [row.steel, Number(row.width), Number(row.speed).toFixed(2), row.mode].join("|");
+                    const source = overviewUpperByCondition.get(key);
+                    if (!source) return;
+                    sourceMatched.push(...source);
+                    targetMatched.push(...upperPositions.slice(index * 3, index * 3 + 3));
+                });
+                if (selectedLayer && sourceMatched.length) {
+                    selectedLayer.geometry.dispose();
+                    selectedLayer.geometry = new THREE.BufferGeometry();
+                    selectedLayer.geometry.setAttribute("position", new THREE.Float32BufferAttribute(sourceMatched, 3));
+                    const movingPositions = selectedLayer.geometry.attributes.position.array;
+                    await animateTransition(620, t => {
+                        for (let i = 0; i < movingPositions.length; i++) movingPositions[i] = sourceMatched[i] + (targetMatched[i] - sourceMatched[i]) * t;
+                        selectedLayer.geometry.attributes.position.needsUpdate = true;
+                        setObjectOpacity(previousAxes, 1 - t);
+                        setObjectOpacity(gridGroup, t);
+                        setObjectOpacity(labelGroup, t);
+                    });
+                } else {
+                    await animateTransition(620, t => {
+                        setObjectOpacity(previousAxes, 1 - t);
+                        setObjectOpacity(gridGroup, t);
+                        setObjectOpacity(labelGroup, t);
+                    });
+                }
+                setObjectOpacity(gridGroup, 1);
+                setObjectOpacity(labelGroup, 1);
+                if (previousAxes) {
+                    scene.remove(previousAxes);
+                    disposeObject(previousAxes);
+                    previousAxes = null;
+                }
+                for (let i = 0; i < upperPositions.length / 3; i++) {
+                    const pointOffset = i * 3, lineOffset = i * 6;
+                    lowerPositions[pointOffset] = upperPositions[pointOffset];
+                    lowerPositions[pointOffset + 1] = upperPositions[pointOffset + 1];
+                    lowerPositions[pointOffset + 2] = upperPositions[pointOffset + 2];
+                    linePositions[lineOffset] = upperPositions[pointOffset];
+                    linePositions[lineOffset + 1] = upperPositions[pointOffset + 1];
+                    linePositions[lineOffset + 2] = upperPositions[pointOffset + 2];
+                }
+                lowerPoints.geometry.attributes.position.needsUpdate = true;
+                segments.geometry.attributes.position.needsUpdate = true;
+                segments.material.opacity = 0;
+                lowerPoints.material.opacity = 0;
+                upperPoints.material.opacity = 0;
+                const fromPosition = camera.position.clone(), fromTarget = controls.target.clone(), fromUp = camera.up.clone();
+                const toPosition = new THREE.Vector3(31, 18, 29), toTarget = new THREE.Vector3(0, 5.2, 0), toUp = new THREE.Vector3(0, 1, 0);
+                standardUpperTransition = 0;
+                await animateTransition(820, t => {
+                    standardUpperTransition = t;
+                    for (let i = 0; i < upperPositions.length / 3; i++) {
+                        const pointOffset = i * 3, lineOffset = i * 6;
+                        for (let axis = 0; axis < 3; axis++) {
+                            const upperValue = upperPositions[pointOffset + axis];
+                            const lowerValue = finalLower[pointOffset + axis];
+                            const value = upperValue + (lowerValue - upperValue) * t;
+                            lowerPositions[pointOffset + axis] = value;
+                            linePositions[lineOffset + axis] = value;
+                        }
+                    }
+                    lowerPoints.geometry.attributes.position.needsUpdate = true;
+                    segments.geometry.attributes.position.needsUpdate = true;
+                    segments.material.opacity = t;
+                    lowerPoints.material.opacity = t;
+                    upperPoints.material.opacity = t;
+                    if (selectedLayer) selectedLayer.material.opacity = .9 * (1 - t);
+                    camera.position.lerpVectors(fromPosition, toPosition, t);
+                    controls.target.lerpVectors(fromTarget, toTarget, t);
+                    camera.up.lerpVectors(fromUp, toUp, t).normalize();
+                    camera.lookAt(controls.target);
+                });
+                standardUpperTransition = null;
+                saved3dCamera = { position: toPosition.clone(), target: toTarget.clone(), up: toUp.clone() };
+            } catch (error) {
+                dateStatus.textContent = error.message;
+                dateStatus.classList.add("error");
+            } finally {
+                standardUpperTransition = null;
+                metadataSceneBuildMode = null;
+                removeTemporaryLayer(selectedLayer);
+                if (previousAxes) {
+                    scene.remove(previousAxes);
+                    disposeObject(previousAxes);
+                }
+                metadataSwitchAnimating = false;
+                metadata.disabled = false;
+                controls.enabled = true;
+                controls.enableRotate = dimensionMode === "3d";
+                controls.update();
+                render();
+            }
+        }
+        let metadataSwitchAnimating = false, overviewReturnPoint = null;
+        async function openSelectedMetadata() {
+            const pickedOverviewPoint = selectedRowData ? { ...selectedRowData } : null;
+            const code = pickedOverviewPoint?.metadataCode;
+            if (metadataSwitchAnimating || !code || !metadataCatalog.some(row => row.code === code)) return;
+            metadataSwitchAnimating = true;
+            controls.enabled = false;
+            try {
+                overviewReturnPoint = pickedOverviewPoint;
+                await switchDimension("2d", { preserveSelection: true });
+                metadata.value = code;
+                closeDrilldown();
+                await loadStandards();
+                const selected = currentRows.find(row =>
+                    row.metadataCode === code &&
+                    row.steel === pickedOverviewPoint.steel &&
+                    Number(row.width) === Number(pickedOverviewPoint.width) &&
+                    Number(row.speed).toFixed(2) === Number(pickedOverviewPoint.speed).toFixed(2) &&
+                    row.mode === pickedOverviewPoint.mode
+                );
+                if (selected) selectRow(currentRows.indexOf(selected), "gold", selected);
+                saved3dCamera = {
+                    position: new THREE.Vector3(31, 18, 29),
+                    target: new THREE.Vector3(0, 5.2, 0),
+                    up: new THREE.Vector3(0, 1, 0),
+                };
+                await new Promise(resolve => setTimeout(resolve, 420));
+                controls.enabled = true;
+                await switchDimension("3d", { preserveSelection: true });
             } catch (error) {
                 dateStatus.textContent = error.message;
                 dateStatus.classList.add("error");
                 applyDates.disabled = false;
+            } finally {
+                metadataSwitchAnimating = false;
+                dimensionAnimating = false;
+                controls.enabled = true;
+                controls.enableRotate = true;
+                controls.update();
+                render();
+            }
+        }
+        async function returnToOverview() {
+            const picked = overviewReturnPoint ? { ...overviewReturnPoint } : null;
+            if (!picked || metadataSwitchAnimating) return;
+            metadataSwitchAnimating = true;
+            metadata.disabled = true;
+            controls.enabled = false;
+            try {
+                // 详情卡片的返回入口保持原来的镜头叙事：单个元数据三维 → 二维 → 总览三维。
+                await switchDimension("2d", { preserveSelection: true });
+                metadata.value = "__all__";
+                await loadOverview();
+                const metadataIndex = overviewPayload.metadata.findIndex(row => row.code === picked.metadataCode);
+                const conditionIndex = overviewPayload.conditions.findIndex(row =>
+                    row.steel === picked.steel && Number(row.width) === Number(picked.width) &&
+                    Number(row.speed).toFixed(2) === Number(picked.speed).toFixed(2) && row.mode === picked.mode
+                );
+                if (metadataIndex >= 0 && conditionIndex >= 0) {
+                    const condition = overviewPayload.conditions[conditionIndex];
+                    const upper = overviewPayload.upperValues[metadataIndex * overviewPayload.conditions.length + conditionIndex];
+                    if (upper !== null && Number.isFinite(Number(upper))) {
+                        selectRow(-1, "gold", {
+                            ...condition,
+                            overviewIndex: conditionIndex,
+                            metadata: overviewPayload.metadata[metadataIndex].name,
+                            metadataCode: picked.metadataCode,
+                            lower: Number(upper),
+                            upper: Number(upper),
+                        });
+                    }
+                }
+                saved3dCamera = {
+                    position: new THREE.Vector3(31, 18, 29),
+                    target: new THREE.Vector3(0, 5.2, 0),
+                    up: new THREE.Vector3(0, 1, 0),
+                };
+                controls.enabled = true;
+                await switchDimension("3d", { preserveSelection: true, fadeOverviewIn: true });
+                overviewReturnPoint = null;
+            } catch (error) {
+                dateStatus.textContent = error.message;
+                dateStatus.classList.add("error");
+            } finally {
+                metadataSwitchAnimating = false;
+                metadata.disabled = false;
+                controls.enabled = true;
+                controls.enableRotate = dimensionMode === "3d";
+                controls.update();
+                render();
             }
         }
         detail.addEventListener("click", e => {
+            if (e.target.closest("[data-return-overview]")) { returnToOverview(); return }
             if (e.target.closest("[data-open-metadata]")) { openSelectedMetadata(); return }
             if (e.target.closest("[data-drill]")) openSelectedDrilldown();
         });
@@ -1414,7 +1893,10 @@
         function resetCameraView() { camera.position.set(31, 18, 29); controls.target.set(0, 5.2, 0); controls.update(); render() } function setBoundsOnly(active) { boundsOnlyActive = active; if (actualNormal) actualNormal.visible = !active; if (actualAbnormal) actualAbnormal.visible = !active; actualPointLayers.forEach(layer => { layer.visible = !active }); if (selectedActualLine) selectedActualLine.material.opacity = 0; if (selectedActualPoints) selectedActualPoints.material.opacity = 0; document.getElementById("actualNormalLegend").style.display = active ? "none" : ""; document.getElementById("actualAbnormalLegend").style.display = active ? "none" : ""; document.getElementById("selectionLegendText").textContent = active ? "单击突出所选标准范围" : "单击突出所选标准与实际范围"; boundsOnlyReset.textContent = active ? "恢复时间对比" : "复位只看上下限"; clearSelection(); updateStats(); render() } function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); render(); if (drilldown.classList.contains("open")) renderDrillChart() } function animate() { requestAnimationFrame(animate); if (controls.update()) render() } controls.addEventListener("change", render); window.addEventListener("resize", resize);
         function render() {
             const comparingTime = viewMode === "compare";
-            if (upperPoints) upperPoints.material.color.setHex(viewMode === "overview" || comparingTime ? 0x2563eb : 0xe11d48);
+            if (upperPoints) {
+                if (standardUpperTransition !== null) upperPoints.material.color.copy(blue).lerp(red, standardUpperTransition);
+                else upperPoints.material.color.setHex(viewMode === "overview" || comparingTime ? 0x2563eb : 0xe11d48);
+            }
             const upperLegendDot = document.getElementById("standardUpperLegendDot");
             if (upperLegendDot) upperLegendDot.style.background = comparingTime ? "#2563eb" : "#e11d48";
             renderer.render(scene, camera);
@@ -1468,6 +1950,151 @@
             dateStatus.textContent = "当前为全部元数据上限总览；选择单个元数据可查看上下限及时间对比";
             dateStatus.classList.remove("error");
         }
+        async function reverseToOverview(picked = null) {
+            if (metadataSwitchAnimating) return;
+            metadataSwitchAnimating = true;
+            metadata.disabled = true;
+            controls.enabled = false;
+            let collapsingLayer = null, overviewSelectedLayer = null, previousAxes = null;
+            try {
+                // 下拉框返回总览不携带选中状态，动画开始时立即移除单点高亮覆盖层。
+                if (!picked) clearSelection();
+                if (dimensionMode === "2d") {
+                    controls.enabled = true;
+                    await switchDimension("3d", { preserveSelection: Boolean(selectedRowData) });
+                    controls.enabled = false;
+                }
+                const sourceCode = records.find(row => row.metadataCode && row.metadataCode !== "__all__")?.metadataCode || metadata.value;
+                const sourceRows = currentRows.slice();
+                const upperPositions = upperPoints?.geometry.attributes.position.array;
+                const sourceUpperByCondition = new Map();
+                if (upperPositions) sourceRows.forEach((row, index) => {
+                    const key = [row.steel, Number(row.width), Number(row.speed).toFixed(2), row.mode].join("|");
+                    sourceUpperByCondition.set(key, Array.from(upperPositions.slice(index * 3, index * 3 + 3)));
+                });
+                if (segments && lowerPoints && upperPositions) {
+                    const linePositions = segments.geometry.attributes.position.array;
+                    const lowerPositions = lowerPoints.geometry.attributes.position.array;
+                    const startLines = linePositions.slice(), startLower = lowerPositions.slice();
+                    const startLineOpacity = segments.material.opacity, startLowerOpacity = lowerPoints.material.opacity, startUpperOpacity = upperPoints.material.opacity;
+                    standardUpperTransition = 1;
+                    await animateTransition(760, t => {
+                        standardUpperTransition = 1 - t;
+                        for (let i = 0; i < upperPositions.length / 3; i++) {
+                            const pointOffset = i * 3, lineOffset = i * 6;
+                            for (let axis = 0; axis < 3; axis++) {
+                                const upperValue = upperPositions[pointOffset + axis];
+                                lowerPositions[pointOffset + axis] = startLower[pointOffset + axis] + (upperValue - startLower[pointOffset + axis]) * t;
+                                linePositions[lineOffset + axis] = startLines[lineOffset + axis] + (upperValue - startLines[lineOffset + axis]) * t;
+                            }
+                        }
+                        lowerPoints.geometry.attributes.position.needsUpdate = true;
+                        segments.geometry.attributes.position.needsUpdate = true;
+                        segments.material.opacity = startLineOpacity * (1 - t);
+                        lowerPoints.material.opacity = startLowerOpacity * (1 - t);
+                        upperPoints.material.opacity = startUpperOpacity + (1 - startUpperOpacity) * t;
+                    });
+                    standardUpperTransition = null;
+                    collapsingLayer = createTemporaryUpperLayer(upperPositions);
+                }
+                previousAxes = new THREE.Group();
+                if (gridGroup) {
+                    root.remove(gridGroup);
+                    previousAxes.add(gridGroup);
+                }
+                if (labelGroup) {
+                    root.remove(labelGroup);
+                    previousAxes.add(labelGroup);
+                }
+                scene.add(previousAxes);
+                metadata.value = "__all__";
+                metadataSceneBuildMode = "to-overview";
+                await loadOverview();
+                metadataSceneBuildMode = null;
+                setObjectOpacity(gridGroup, 0);
+                setObjectOpacity(labelGroup, 0);
+                // 构建阶段会刻意把总览点层设为透明；动画目标始终恢复为正常总览亮度。
+                const targetOpacity = .9;
+                if (overviewPointCloud) overviewPointCloud.material.opacity = 0;
+                const metadataIndex = overviewPayload.metadata.findIndex(row => row.code === sourceCode);
+                const sourceMatched = [], targetMatched = [];
+                if (metadataIndex >= 0) overviewPayload.conditions.forEach((condition, conditionIndex) => {
+                    const value = overviewPayload.upperValues[metadataIndex * overviewPayload.conditions.length + conditionIndex];
+                    const key = [condition.steel, Number(condition.width), Number(condition.speed).toFixed(2), condition.mode].join("|");
+                    const source = sourceUpperByCondition.get(key);
+                    if (!source || value === null || !Number.isFinite(Number(value))) return;
+                    sourceMatched.push(...source);
+                    targetMatched.push(xPosition(condition.speed), zPosition(Number(value)), yPosition(condition.y));
+                });
+                if (collapsingLayer && sourceMatched.length) {
+                    collapsingLayer.geometry.dispose();
+                    collapsingLayer.geometry = new THREE.BufferGeometry();
+                    collapsingLayer.geometry.setAttribute("position", new THREE.Float32BufferAttribute(sourceMatched, 3));
+                    const movingPositions = collapsingLayer.geometry.attributes.position.array;
+                    await animateTransition(620, t => {
+                        for (let i = 0; i < movingPositions.length; i++) movingPositions[i] = sourceMatched[i] + (targetMatched[i] - sourceMatched[i]) * t;
+                        collapsingLayer.geometry.attributes.position.needsUpdate = true;
+                        setObjectOpacity(previousAxes, 1 - t);
+                        setObjectOpacity(gridGroup, t);
+                        setObjectOpacity(labelGroup, t);
+                    });
+                    overviewSelectedLayer = collapsingLayer;
+                    collapsingLayer = null;
+                } else {
+                    removeTemporaryLayer(collapsingLayer); collapsingLayer = null;
+                    overviewSelectedLayer = createOverviewMetadataLayer(sourceCode);
+                    if (overviewSelectedLayer) overviewSelectedLayer.material.opacity = .9;
+                    await animateTransition(620, t => {
+                        setObjectOpacity(previousAxes, 1 - t);
+                        setObjectOpacity(gridGroup, t);
+                        setObjectOpacity(labelGroup, t);
+                    });
+                }
+                setObjectOpacity(gridGroup, 1);
+                setObjectOpacity(labelGroup, 1);
+                if (previousAxes) {
+                    scene.remove(previousAxes);
+                    disposeObject(previousAxes);
+                    previousAxes = null;
+                }
+                await animateTransition(900, t => {
+                    if (overviewPointCloud) overviewPointCloud.material.opacity = targetOpacity * t;
+                    if (overviewSelectedLayer) overviewSelectedLayer.material.opacity = .9 * (1 - t);
+                });
+                if (overviewPointCloud) overviewPointCloud.material.opacity = targetOpacity;
+                if (picked) {
+                    const metadataIndex = overviewPayload.metadata.findIndex(row => row.code === picked.metadataCode);
+                    const conditionIndex = overviewPayload.conditions.findIndex(row =>
+                        row.steel === picked.steel && Number(row.width) === Number(picked.width) &&
+                        Number(row.speed).toFixed(2) === Number(picked.speed).toFixed(2) && row.mode === picked.mode
+                    );
+                    if (metadataIndex >= 0 && conditionIndex >= 0) {
+                        const condition = overviewPayload.conditions[conditionIndex];
+                        const upper = overviewPayload.upperValues[metadataIndex * overviewPayload.conditions.length + conditionIndex];
+                        if (upper !== null && Number.isFinite(Number(upper))) selectRow(-1, "gold", { ...condition, overviewIndex: conditionIndex, metadata: overviewPayload.metadata[metadataIndex].name, metadataCode: picked.metadataCode, lower: Number(upper), upper: Number(upper) });
+                    }
+                } else clearSelection();
+            } catch (error) {
+                dateStatus.textContent = error.message;
+                dateStatus.classList.add("error");
+            } finally {
+                standardUpperTransition = null;
+                metadataSceneBuildMode = null;
+                removeTemporaryLayer(collapsingLayer);
+                removeTemporaryLayer(overviewSelectedLayer);
+                if (previousAxes) {
+                    scene.remove(previousAxes);
+                    disposeObject(previousAxes);
+                }
+                metadataSwitchAnimating = false;
+                metadata.disabled = false;
+                controls.enabled = true;
+                controls.enableRotate = true;
+                controls.update();
+                render();
+            }
+        }
+        async function loadOverviewWithFade() { await reverseToOverview(null) }
         async function loadStandards() {
             const item = metadataCatalog.find(row => row.code === metadata.value);
             if (!item) return;
@@ -1481,15 +2108,35 @@
             dateStatus.textContent = "未查询时间，当前只显示上下限标准";
             dateStatus.classList.remove("error"); applyDates.disabled = false;
         }
+        function renderMetadataOptions(query = "", selectedCode = metadata.value || "__all__") {
+            const keyword = query.trim().toLocaleLowerCase("zh-CN");
+            const matches = item => !keyword || item.name.toLocaleLowerCase("zh-CN").includes(keyword) || item.code.toLocaleLowerCase("zh-CN").includes(keyword);
+            const visibleItems = metadataCatalog.filter(matches);
+            const selectedItem = metadataCatalog.find(item => item.code === selectedCode);
+            metadata.innerHTML = "";
+            if (!keyword || selectedCode === "__all__") {
+                const allOption = document.createElement("option");
+                allOption.value = "__all__";
+                allOption.textContent = "全部元数据上限总览";
+                metadata.appendChild(allOption);
+            }
+            if (selectedItem && !visibleItems.some(item => item.code === selectedCode)) {
+                const option = document.createElement("option");
+                option.value = selectedItem.code;
+                option.textContent = `${selectedItem.name}（当前）`;
+                metadata.appendChild(option);
+            }
+            visibleItems.forEach(item => {
+                const option = document.createElement("option");
+                option.value = item.code;
+                option.textContent = item.name;
+                metadata.appendChild(option);
+            });
+            if ([...metadata.options].some(option => option.value === selectedCode)) metadata.value = selectedCode;
+        }
         async function loadMetadataCatalog() {
             metadataCatalog = await fetchJson(`${API_BASE}/metadata`);
-            metadata.innerHTML = "";
-            const allOption = document.createElement("option");
-            allOption.value = "__all__"; allOption.textContent = "全部元数据上限总览"; metadata.appendChild(allOption);
-            metadataCatalog.forEach(item => {
-                const option = document.createElement("option");
-                option.value = item.code; option.textContent = item.name; metadata.appendChild(option);
-            });
+            renderMetadataOptions("", "__all__");
             if (!metadataCatalog.length) throw new Error("数据库中没有同时具备上下限标准和实际统计结果的元数据");
             await loadOverview();
         }
@@ -1511,13 +2158,41 @@
             } catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error") }
             finally { applyDates.disabled = false }
         }
-        boundsOnlyReset.onclick = () => setBoundsOnly(!boundsOnlyActive);
-        view3dButton.onclick = () => switchDimension("3d");
-        view2dButton.onclick = () => switchDimension("2d");
+        boundsOnlyReset.onclick = () => {
+            setBoundsOnly(!boundsOnlyActive);
+            updateDistributionPointColors();
+            render();
+        };
+        view3dButton.onclick = () => switchDimension("3d", { preserveSelection: Boolean(selectedRowData) });
+        view2dButton.onclick = () => switchDimension("2d", { preserveSelection: Boolean(selectedRowData) });
         applyDates.onclick = applyDateSelection;
+        metadataSearch.addEventListener("input", () => renderMetadataOptions(metadataSearch.value));
+        metadataSearch.addEventListener("keydown", event => {
+            if (event.key === "Escape") {
+                metadataSearch.value = "";
+                renderMetadataOptions();
+                metadataSearch.blur();
+                return;
+            }
+            if (event.key !== "Enter") return;
+            const keyword = metadataSearch.value.trim().toLocaleLowerCase("zh-CN");
+            if (!keyword) return;
+            const first = metadataCatalog.find(item => item.name.toLocaleLowerCase("zh-CN").includes(keyword) || item.code.toLocaleLowerCase("zh-CN").includes(keyword));
+            if (!first) return;
+            event.preventDefault();
+            metadata.value = first.code;
+            metadata.dispatchEvent(new Event("change"));
+        });
         metadata.onchange = async () => {
+            const selectedCode = metadata.value;
+            metadataSearch.value = "";
+            renderMetadataOptions("", selectedCode);
             closeDrilldown();
-            try { metadata.value === "__all__" ? await loadOverview() : await loadStandards() }
+            try {
+                if (metadata.value === "__all__") await (viewMode === "overview" ? loadOverview() : loadOverviewWithFade());
+                else if (viewMode === "overview" && dimensionMode === "3d") await selectMetadataFromOverview();
+                else await loadStandards();
+            }
             catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error"); applyDates.disabled = false }
         };
         spec.onchange = () => { closeDrilldown(); updateDateStatusForSpec(); build() };
