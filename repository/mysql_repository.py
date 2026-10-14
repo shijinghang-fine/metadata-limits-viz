@@ -75,7 +75,10 @@ def fetch_standards(config, metadata_code):
                lower_limit, duration_seconds, steel_mark, casting_speed,
                width, casting_mode, limit_range
         FROM standard_limits
-        WHERE metadata_code = %s AND casting_mode = '浇铸模式'
+        WHERE metadata_code = %s
+          AND casting_mode = '浇铸模式'
+          AND upper_limit IS NOT NULL
+          AND lower_limit IS NOT NULL
         ORDER BY steel_mark, width, casting_speed, condition_key
     """
     with connect(config, autocommit=True) as connection:
@@ -85,7 +88,7 @@ def fetch_standards(config, metadata_code):
 
 
 def fetch_all_standards(config):
-    """查询总览需要的全部上限，并压缩为元数据、条件和数值矩阵。"""
+    """查询总览需要的全部上下限，并压缩为元数据、条件和数值矩阵。"""
     codes_sql = """
         SELECT DISTINCT metadata_code
         FROM metadata_daily_limits
@@ -98,6 +101,7 @@ def fetch_all_standards(config):
             sql = """
                 SELECT metadata_code, MAX(metadata_name) AS metadata_name,
                        MAX(upper_limit) AS upper_limit,
+                       MIN(lower_limit) AS lower_limit,
                        steel_mark, casting_speed, width
                 FROM standard_limits
                 WHERE metadata_code = %s
@@ -107,7 +111,8 @@ def fetch_all_standards(config):
             """
             metadata = []
             conditions = None
-            values = []
+            upper_values = []
+            lower_values = []
             for code in codes:
                 cursor.execute(sql, (code,))
                 rows = cursor.fetchall()
@@ -133,16 +138,40 @@ def fetch_all_standards(config):
                         "name": rows[0]["metadata_name"] or code,
                     }
                 )
-                values.extend(
+                upper_values.extend(
                     None if row["upper_limit"] is None
                     else float(row["upper_limit"])
+                    for row in rows
+                )
+                lower_values.extend(
+                    None if row["lower_limit"] is None
+                    else float(row["lower_limit"])
                     for row in rows
                 )
             return {
                 "metadata": metadata,
                 "conditions": conditions or [],
-                "upper_values": values,
+                "upper_values": upper_values,
+                "lower_values": lower_values,
             }
+
+
+def fetch_all_daily_limits(config, start_date, end_date):
+    """一次聚合全部元数据在日期范围内的实际最小值和最大值。"""
+    sql = """
+        SELECT metadata_code, steel_grade, width, casting_speed,
+               MIN(min_value) AS min_value,
+               MAX(max_value) AS max_value,
+               SUM(valid_count) AS valid_count
+        FROM metadata_daily_limits
+        WHERE stat_date BETWEEN %s AND %s
+        GROUP BY metadata_code, steel_grade, width, casting_speed
+        ORDER BY metadata_code, steel_grade, width, casting_speed
+    """
+    with connect(config, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, (start_date, end_date))
+            return cursor.fetchall()
 
 
 def fetch_daily_limits(config, metadata_code, start_date, end_date):

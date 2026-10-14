@@ -131,14 +131,42 @@
 
         select:focus, input:focus { border-color: #6aa4f8; box-shadow: 0 0 0 3px rgba(37, 99, 235, .1) }
 
-        .meta {
-            max-width: 230px
-        }
+        .meta { display: none }
 
-        #metadataSearch {
-            width: 170px;
-            padding-left: 30px
+        .metadata-picker { position: relative; width: 290px; flex: 0 0 290px }
+        .metadata-trigger {
+            width: 100%; height: 34px; display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; padding: 5px 11px; border: 1px solid #d7dee8; border-radius: 8px;
+            background: #fff; color: #1f2937; font: inherit; font-size: 13px; cursor: pointer;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .03); text-align: left
         }
+        .metadata-trigger:hover { border-color: #94a3b8 }
+        .metadata-trigger:focus, .metadata-picker.open .metadata-trigger { border-color: #6aa4f8; box-shadow: 0 0 0 3px rgba(37, 99, 235, .1); outline: none }
+        .metadata-trigger:disabled { cursor: not-allowed; opacity: .6 }
+        .metadata-trigger-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+        .metadata-chevron { color: #64748b; font-size: 15px; transition: transform .16s }
+        .metadata-picker.open .metadata-chevron { transform: rotate(180deg) }
+        .metadata-menu {
+            position: absolute; z-index: 80; top: calc(100% + 6px); left: 0; width: 100%;
+            padding: 8px; border: 1px solid #d7dee8; border-radius: 10px; background: #fff;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, .16); display: none
+        }
+        .metadata-picker.open .metadata-menu { display: block }
+        #metadataSearch { width: 100%; padding-left: 30px }
+        .metadata-options { max-height: 310px; margin-top: 7px; overflow-y: auto; overscroll-behavior: contain }
+        .metadata-option {
+            width: 100%; display: block; padding: 8px 10px; border: 0; border-radius: 6px;
+            background: transparent; color: #334155; font: inherit; font-size: 13px;
+            line-height: 1.35; text-align: left; cursor: pointer
+        }
+        .metadata-option:hover, .metadata-option.active { background: #eef5ff; color: #1d4ed8 }
+        .metadata-option.overview-option {
+            position: sticky; top: 0; z-index: 2; background: #fff;
+            border-bottom: 1px solid #e5eaf1; border-radius: 6px 6px 3px 3px;
+            box-shadow: 0 3px 7px rgba(15, 23, 42, .06); font-weight: 650
+        }
+        .metadata-option.overview-option:hover, .metadata-option.overview-option.active { background: #eef5ff }
+        .metadata-empty { padding: 14px 10px; color: #94a3b8; font-size: 12.5px; text-align: center }
 
         .search-wrap { position: relative; display: inline-flex }
         .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; pointer-events: none }
@@ -532,8 +560,16 @@
         <div class="toolbar-primary">
             <div class="query-section">
                 <span class="section-title">元数据</span>
-                <div class="search-wrap"><span class="search-icon">⌕</span><input type="search" id="metadataSearch" placeholder="搜索名称或编码" autocomplete="off"></div>
-                <select id="metadata" class="meta" aria-label="元数据"></select>
+                <div class="metadata-picker" id="metadataPicker">
+                    <button type="button" class="metadata-trigger" id="metadataTrigger" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="metadata-trigger-text" id="metadataTriggerText">正在读取数据库…</span><span class="metadata-chevron">⌄</span>
+                    </button>
+                    <div class="metadata-menu" id="metadataMenu">
+                        <div class="search-wrap"><span class="search-icon">⌕</span><input type="search" id="metadataSearch" placeholder="搜索名称或编码" autocomplete="off"></div>
+                        <div class="metadata-options" id="metadataOptions" role="listbox"></div>
+                    </div>
+                    <select id="metadata" class="meta" aria-label="元数据" tabindex="-1"></select>
+                </div>
             </div>
             <div class="query-section">
                 <span class="section-title">工艺条件</span>
@@ -572,7 +608,7 @@
                 <circle id="actualOverlayLower" r="2" fill="#dc2626"/>
                 <circle id="actualOverlayUpper" r="2" fill="#dc2626"/>
             </g>
-            <circle id="distributionSelection" r="4.5" fill="#2563eb" stroke="#ffffff" stroke-width="1.5" style="display:none"/>
+            <circle id="distributionSelection" r="6" fill="#2563eb" stroke="none" style="display:none"/>
         </svg>
         <div class="loading" id="loading">正在构建 Three.js 场景…</div>
         <div class="legend">
@@ -637,7 +673,11 @@
         let selectedEndDate = "";
         let viewMode = "standard";
         let actualByKey = new Map();
+        let overviewActualByKey = new Map();
+        let overviewComparisonActive = false;
+        let dataRequestVersion = 0;
         const actualFor = d => actualByKey.get(conditionKey(d.metadataCode, d.steel, d.width, d.speed));
+        const overviewActualFor = (metadataCode, condition) => overviewActualByKey.get(conditionKey(metadataCode, condition.steel, condition.width, condition.speed));
         const isAbnormal = (d, actual) => actual && (actual.lower < d.lower || actual.upper > d.upper);
         const timeComparisonVisible = () => viewMode === "compare" && !boundsOnlyActive;
         function comparisonHtml(d) { if (!timeComparisonVisible()) return ""; const actual = actualFor(d); if (!actual) return `<br><b>所选时间无实际数据</b>`; const abnormal = isAbnormal(d, actual); return `<br>实际最小值：${Number(actual.lower).toPrecision(6)}<br>实际最大值：${Number(actual.upper).toPrecision(6)}<br>有效数据量：${actual.count.toLocaleString()}<br><b style="color:${abnormal ? '#dc2626' : '#15803d'}">${abnormal ? '异常：超出上下限标准' : '正常：位于上下限标准内'}</b>` }
@@ -645,23 +685,153 @@
         const metadataButtonHtml = () => viewMode === "overview" && dimensionMode === "3d"
             ? `<br><button type="button" class="drill-btn" data-open-metadata="1">查看该元数据上下限 →</button>`
             : "";
-        const overviewReturnButtonHtml = () => overviewReturnPoint && viewMode === "standard" && dimensionMode === "3d"
-            ? `<br><button type="button" class="drill-btn" data-return-overview="1">← 返回全部元数据总览</button>`
-            : "";
+        function overviewReturnLabel() {
+            const filters = overviewReturnFilters;
+            if (!filters) return "返回全部元数据总览";
+            const conditions = [];
+            if (filters.timeActive && filters.start && filters.end) {
+                conditions.push(`${filters.start.replaceAll("-", "/")}—${filters.end.replaceAll("-", "/")}`);
+            }
+            if (filters.spec !== "全部") {
+                if (filters.spec.startsWith("steel:")) conditions.push(filters.spec.slice(6) + "规格");
+                else if (filters.spec.startsWith("spec:")) conditions.push(filters.spec.slice(5).replace("｜", " · "));
+            }
+            if (filters.speed !== "全部") conditions.push("拉速" + displaySpeed(filters.speed));
+            return conditions.length ? `返回${conditions.join("、")}元数据总览` : "返回全部元数据总览";
+        }
+        const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
+        const overviewReturnButtonHtml = () => {
+            if (!overviewReturnPoint || !["standard", "compare"].includes(viewMode) || dimensionMode !== "3d") return "";
+            const label = escapeHtml(overviewReturnLabel());
+            return `<br><button type="button" class="drill-btn" data-return-overview="1" title="${label}">← ${label}</button>`;
+        };
 
         const metadata = document.getElementById("metadata"), metadataSearch = document.getElementById("metadataSearch"), spec = document.getElementById("spec"), speed = document.getElementById("speed"), resultCount = document.getElementById("resultCount"), resetFilters = document.getElementById("resetFilters"), boundsOnlyReset = document.getElementById("boundsOnlyReset"), detail = document.getElementById("detail"), view = document.getElementById("view"), canvas = document.getElementById("canvas"), tooltip = document.getElementById("tooltip"), startDate = document.getElementById("startDate"), endDate = document.getElementById("endDate"), applyDates = document.getElementById("applyDates"), dateStatus = document.getElementById("dateStatus"), selectionOverlayGroup = document.getElementById("selectionOverlayGroup"), distributionSelection = document.getElementById("distributionSelection"), standardOverlayLine = document.getElementById("standardOverlayLine"), standardOverlayLower = document.getElementById("standardOverlayLower"), standardOverlayUpper = document.getElementById("standardOverlayUpper"), actualOverlayLine = document.getElementById("actualOverlayLine"), actualOverlayLower = document.getElementById("actualOverlayLower"), actualOverlayUpper = document.getElementById("actualOverlayUpper");
+        const metadataPicker = document.getElementById("metadataPicker"), metadataTrigger = document.getElementById("metadataTrigger"), metadataTriggerText = document.getElementById("metadataTriggerText"), metadataOptions = document.getElementById("metadataOptions");
+        function setMetadataDisabled(disabled) {
+            metadata.disabled = disabled;
+            metadataTrigger.disabled = disabled;
+            if (disabled) {
+                metadataPicker.classList.remove("open");
+                metadataTrigger.setAttribute("aria-expanded", "false");
+            }
+        }
         const view3dButton = document.getElementById("view3dButton"), view2dButton = document.getElementById("view2dButton"), axisDescription = document.getElementById("axisDescription"), standardRangeLegend = document.getElementById("standardRangeLegend"), standardDotsLegend = document.getElementById("standardDotsLegend"), selectionLegend = document.getElementById("selectionLegend"), distributionLegend = document.getElementById("distributionLegend"), distributionBlueDot = document.getElementById("distributionBlueDot"), distributionLegendText = document.getElementById("distributionLegendText");
         metadata.innerHTML = '<option value="">正在读取数据库…</option>';
         dateStatus.textContent = "正在连接数据库…";
         const displaySpeed = v => Number(v).toFixed(2);
         function fillSelect(select, values, format = v => v) { const previous = select.value; select.innerHTML = '<option value="全部">全部</option>'; values.forEach(v => { const o = document.createElement("option"); o.value = String(v); o.textContent = format(v); select.appendChild(o) }); if ([...select.options].some(o => o.value === previous)) select.value = previous }
         function fillSpecSelect(base) { const previous = spec.value; spec.innerHTML = '<option value="全部">全部钢种规格（' + base.length + ' 条）</option>'; const steels = [...new Set(base.map(d => d.steel))].sort((a, b) => a.localeCompare(b, "zh-CN")); steels.forEach(steel => { const rows = base.filter(d => d.steel === steel), group = document.createElement("optgroup"); group.label = steel; const all = document.createElement("option"); all.value = "steel:" + steel; all.textContent = steel + "规格的全部宽度（" + rows.length + " 条）"; group.appendChild(all);[...new Set(rows.map(d => d.yLabel))].sort((a, b) => a.localeCompare(b, "zh-CN")).forEach(label => { const option = document.createElement("option"), count = rows.filter(d => d.yLabel === label).length; option.value = "spec:" + label; option.textContent = label + "（" + count + " 条）"; group.appendChild(option) }); spec.appendChild(group) }); if ([...spec.options].some(o => o.value === previous)) spec.value = previous }
-        function visibleStandardRows() { return viewMode === "compare" ? records.filter(d => actualFor(d)) : records }
-        function refreshFilterOptions() { fillSpecSelect(records); fillSelect(speed, [...new Set(records.map(d => Number(d.speed)))].sort((a, b) => a - b), displaySpeed) }
-        function matchesSpec(d) { return spec.value === "全部" || spec.value === "steel:" + d.steel || spec.value === "spec:" + d.yLabel }
-        function matchesSpeed(d) { return speed.value === "全部" || Number(d.speed).toFixed(2) === Number(speed.value).toFixed(2) }
+        function overviewConditionComparison(condition) {
+            if (!overviewComparisonActive || !overviewPayload) return null;
+            const conditionCount = overviewPayload.conditions.length;
+            let hasActual = false, abnormal = false;
+            for (let metadataIndex = 0; metadataIndex < overviewPayload.metadata.length; metadataIndex++) {
+                const metadataItem = overviewPayload.metadata[metadataIndex];
+                const actual = overviewActualFor(metadataItem.code, condition);
+                if (!actual) continue;
+                hasActual = true;
+                const offset = metadataIndex * conditionCount + condition.overviewIndex;
+                const lower = Number(overviewPayload.lowerValues?.[offset]);
+                const upper = Number(overviewPayload.upperValues[offset]);
+                if (actual.upper > upper || (Number.isFinite(lower) && actual.lower < lower)) abnormal = true;
+            }
+            return hasActual ? { abnormal } : null;
+        }
+        function visibleStandardRows() {
+            if (viewMode === "compare") return records.filter(d => actualFor(d));
+            if (viewMode === "overview" && overviewComparisonActive) return records.filter(d => overviewConditionComparison(d));
+            return records;
+        }
+        function matchesSpecValue(d, value) { return value === "全部" || value === "steel:" + d.steel || value === "spec:" + d.yLabel }
+        function matchesSpeedValue(d, value) { return value === "全部" || Number(d.speed).toFixed(2) === Number(value).toFixed(2) }
+        function refreshFilterOptions(changed = null) {
+            const availableRows = visibleStandardRows();
+            if (changed === "speed") {
+                const rowsAtSpeed = availableRows.filter(d => matchesSpeedValue(d, speed.value));
+                fillSpecSelect(rowsAtSpeed);
+                const rowsAtSpec = availableRows.filter(d => matchesSpecValue(d, spec.value));
+                fillSelect(speed, [...new Set(rowsAtSpec.map(d => Number(d.speed)))].sort((a, b) => a - b), displaySpeed);
+                return;
+            }
+            const rowsAtSpec = availableRows.filter(d => matchesSpecValue(d, spec.value));
+            fillSelect(speed, [...new Set(rowsAtSpec.map(d => Number(d.speed)))].sort((a, b) => a - b), displaySpeed);
+            const rowsAtSpeed = availableRows.filter(d => matchesSpeedValue(d, speed.value));
+            fillSpecSelect(rowsAtSpeed);
+        }
+        function captureFilterState() {
+            return {
+                spec: spec.value || "全部",
+                speed: speed.value || "全部",
+                start: startDate.value || selectedStartDate,
+                end: endDate.value || selectedEndDate,
+                timeActive: viewMode === "compare" || (viewMode === "overview" && overviewComparisonActive),
+            };
+        }
+        function ensureSelectedFilterOptions(filterState) {
+            if (!filterState) return;
+            if (filterState.spec && filterState.spec !== "全部" && ![...spec.options].some(option => option.value === filterState.spec)) {
+                const option = document.createElement("option");
+                option.value = filterState.spec;
+                option.textContent = filterState.spec.startsWith("steel:")
+                    ? `${filterState.spec.slice(6)}规格（当前无点位）`
+                    : `${filterState.spec.replace(/^spec:/, "").replace("｜", " · ")}（当前无点位）`;
+                spec.appendChild(option);
+            }
+            if (filterState.speed && filterState.speed !== "全部" && ![...speed.options].some(option => Number(option.value).toFixed(2) === Number(filterState.speed).toFixed(2))) {
+                const option = document.createElement("option");
+                option.value = String(filterState.speed);
+                option.textContent = `${displaySpeed(filterState.speed)}（当前无点位）`;
+                speed.appendChild(option);
+            }
+            if (filterState.spec) spec.value = filterState.spec;
+            if (filterState.speed) speed.value = String(filterState.speed);
+        }
+        function applyRetainedFilters(filterState) {
+            refreshFilterOptions();
+            if (!filterState) return;
+            ensureSelectedFilterOptions(filterState);
+            refreshFilterOptions("speed");
+            ensureSelectedFilterOptions(filterState);
+        }
+        function applyRetainedDates(filterState) {
+            if (!filterState?.start || !filterState?.end) return;
+            minAvailableDate = !minAvailableDate || filterState.start < minAvailableDate ? filterState.start : minAvailableDate;
+            maxAvailableDate = !maxAvailableDate || filterState.end > maxAvailableDate ? filterState.end : maxAvailableDate;
+            startDate.min = endDate.min = minAvailableDate;
+            startDate.max = endDate.max = maxAvailableDate;
+            selectedStartDate = filterState.start;
+            selectedEndDate = filterState.end;
+            startDate.value = filterState.start;
+            endDate.value = filterState.end;
+        }
+        function matchesSpec(d) { return matchesSpecValue(d, spec.value) }
+        function matchesSpeed(d) { return matchesSpeedValue(d, speed.value) }
         function standardFiltered() { return records.filter(d => matchesSpec(d) && matchesSpeed(d)) }
         function filtered() { return visibleStandardRows().filter(d => matchesSpec(d) && matchesSpeed(d)) }
+        function overviewCoordinateRows() {
+            if (!overviewPayload?.conditions?.length) return records;
+            return overviewPayload.conditions.map((condition, overviewIndex) => ({ ...condition, overviewIndex }));
+        }
+        function axisReferenceRows() {
+            if (viewMode === "overview") return records;
+            const valueRows = standardFiltered();
+            if (!overviewPayload?.conditions?.length || !valueRows.length) return valueRows;
+            const lower = Math.min(...valueRows.map(row => Number(row.lower)));
+            const upper = Math.max(...valueRows.map(row => Number(row.upper)));
+            return overviewCoordinateRows().map(condition => ({ ...condition, lower, upper }));
+        }
+        function alignRecordsToOverviewCoordinates(rows) {
+            if (!overviewPayload?.conditions?.length) return rows;
+            const coordinates = new Map(overviewPayload.conditions.map((condition, overviewIndex) => [
+                [condition.steel, Number(condition.width), Number(condition.speed).toFixed(2), condition.mode].join("|"),
+                { y: condition.y, overviewIndex },
+            ]));
+            return rows.map(row => {
+                const coordinate = coordinates.get([row.steel, Number(row.width), Number(row.speed).toFixed(2), row.mode].join("|"));
+                return coordinate ? { ...row, ...coordinate } : row;
+            });
+        }
         function updateDateStatusForSpec() {
             if (viewMode !== "compare") return;
             const days = inclusiveDays(selectedStartDate, selectedEndDate);
@@ -675,12 +845,12 @@
                 dateStatus.classList.remove("error");
             }
         }
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" }); renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio, 2), 3)); renderer.setClearColor(0xf5f7fb, 0);
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" }); renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio, 1), 1.5)); renderer.setClearColor(0xf5f7fb, 0);
         const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(38, 1, .1, 200); camera.position.set(31, 18, 29);
         const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = .08; controls.screenSpacePanning = true; controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }; controls.target.set(0, 5.2, 0);
         const root = new THREE.Group(); scene.add(root); const raycaster = new THREE.Raycaster(); raycaster.params.Line.threshold = .45; raycaster.params.Points.threshold = 1.25; const pointer = new THREE.Vector2();
         const xMin = -18, xMax = 18; let currentRows = [], ySlots = [], xDataMin = 0, xDataMax = 1, bounds = null, segments = null, lowerPoints = null, upperPoints = null, actualNormal = null, actualAbnormal = null, actualPointLayers = [], boundsOnlyActive = false, highlightLine = null, highlightPoints = null, labelGroup = null, gridGroup = null, flatGridGroup = null, flatLabelGroup = null, downAt = null, distributionPoints = null, dimensionMode = "3d", dimensionAnimating = false, dimensionTransitionFlat = null, standardUpperTransition = null, metadataSceneBuildMode = null, saved3dCamera = null;
-        const blue = new THREE.Color(0x2563eb), lightBlue = new THREE.Color(0x93c5fd), red = new THREE.Color(0xe11d48), orange = new THREE.Color(0xf59e0b);
+        const blue = new THREE.Color(0x2563eb), lightBlue = new THREE.Color(0x8b5cf6), red = new THREE.Color(0xe11d48), green = new THREE.Color(0x16a34a), orange = new THREE.Color(0xf59e0b);
         function disposeObject(o) { o.traverse(n => { if (n.geometry) n.geometry.dispose(); if (n.material) { const a = Array.isArray(n.material) ? n.material : [n.material]; a.forEach(m => { if (m.map) m.map.dispose(); m.dispose() }) } }); o.clear() }
         function setObjectOpacity(object, factor) {
             if (!object) return;
@@ -732,7 +902,53 @@
         function map(v, a, b, A, B) { return b === a ? (A + B) / 2 : A + (v - a) * (B - A) / (b - a) }
         function xPosition(v) { if (Math.abs(v) < 1e-9) return xMin; if (xDataMin > 0 && v >= xDataMin) return map(v, xDataMin, xDataMax, xMin + 2.2, xMax); return map(v, bounds.xmin, bounds.xmax, xMin, xMax) }
         function yPosition(v) { const index = ySlots.indexOf(v); return index < 0 ? 0 : 12 - (index + 1) * 24 / (ySlots.length + 1) }
-        function zPosition(v) { ensureAdaptiveZBounds(); if (bounds.zmin <= 0 && bounds.zmax >= 0) { const extent = Math.max(Math.abs(bounds.zmin), Math.abs(bounds.zmax), 1e-9); return v / extent * 14 } return map(v, bounds.zmin, bounds.zmax, 0, 14) }
+        const overviewLowThreshold = 1000;
+        const overviewLowScale = 10;
+        const overviewMiddleScale = .5;
+        const overviewSymlogConstant = 7000;
+        const overviewLogBase = 15;
+        function overviewSymlog(value) {
+            const absolute = Math.abs(value);
+            const direction = Math.sign(value);
+            if (absolute <= overviewLowThreshold) return direction * overviewLowScale * absolute;
+            const lowExpanded = overviewLowScale * overviewLowThreshold;
+            if (absolute <= overviewSymlogConstant) return direction * (lowExpanded + (absolute - overviewLowThreshold) * overviewMiddleScale);
+            const logStart = lowExpanded + (overviewSymlogConstant - overviewLowThreshold) * overviewMiddleScale;
+            const logarithmic = Math.log(absolute / overviewSymlogConstant) / Math.log(overviewLogBase);
+            return direction * (logStart + overviewSymlogConstant * logarithmic);
+        }
+        function overviewSymlogInverse(value) {
+            const absolute = Math.abs(value);
+            const direction = Math.sign(value);
+            const lowExpanded = overviewLowScale * overviewLowThreshold;
+            const logStart = lowExpanded + (overviewSymlogConstant - overviewLowThreshold) * overviewMiddleScale;
+            if (absolute <= lowExpanded) return direction * absolute / overviewLowScale;
+            if (absolute <= logStart) return direction * (overviewLowThreshold + (absolute - lowExpanded) / overviewMiddleScale);
+            return direction * overviewSymlogConstant * Math.pow(overviewLogBase, (absolute - logStart) / overviewSymlogConstant);
+        }
+        function overviewTickLabel(value) {
+            const absolute = Math.abs(value);
+            if (absolute < 1e-9) return "0";
+            const magnitude = Math.pow(10, Math.max(0, Math.floor(Math.log10(absolute)) - 2));
+            return String(Math.round(value / magnitude) * magnitude);
+        }
+        function zPosition(v) {
+            ensureAdaptiveZBounds();
+            if (viewMode === "overview") {
+                const transformed = overviewSymlog(Number(v));
+                const transformedMin = overviewSymlog(bounds.zmin), transformedMax = overviewSymlog(bounds.zmax);
+                if (bounds.zmin <= 0 && bounds.zmax >= 0) {
+                    const extent = Math.max(Math.abs(transformedMin), Math.abs(transformedMax), 1e-9);
+                    return transformed / extent * 14;
+                }
+                return map(transformed, transformedMin, transformedMax, 0, 14);
+            }
+            if (bounds.zmin <= 0 && bounds.zmax >= 0) {
+                const extent = Math.max(Math.abs(bounds.zmin), Math.abs(bounds.zmax), 1e-9);
+                return v / extent * 14;
+            }
+            return map(v, bounds.zmin, bounds.zmax, 0, 14);
+        }
         let selectionOverlayData = null;
         function overlayPoint(d, value, flat = 0) {
             const height = zPosition(value) * (1 - flat) + .12 * flat;
@@ -748,6 +964,11 @@
         }
         function updateSelectionOverlay() {
             if (!selectionOverlayData || !bounds) { selectionOverlayGroup.style.display = "none"; distributionSelection.style.display = "none"; return }
+            if (viewMode === "overview" && dimensionTransitionFlat !== null) {
+                selectionOverlayGroup.style.display = "none";
+                distributionSelection.style.display = "none";
+                return;
+            }
             const { d, actual } = selectionOverlayData;
             const flat = dimensionTransitionFlat === null ? (dimensionMode === "2d" ? 1 : 0) : dimensionTransitionFlat;
             if (flat >= .999) {
@@ -757,7 +978,7 @@
                 distributionSelection.setAttribute("cy", (1 - point.y) * canvas.clientHeight / 2);
                 const color = viewMode === "overview" ? "#2563eb" : viewMode === "compare" ? (isAbnormal(d, actual) ? "#dc2626" : "#16a34a") : "#2563eb";
                 distributionSelection.setAttribute("fill", color);
-                distributionSelection.setAttribute("stroke", "#ffffff");
+                distributionSelection.setAttribute("stroke", "none");
                 distributionSelection.style.display = "";
                 return;
             }
@@ -807,6 +1028,7 @@
             currentRows.forEach(d => {
                 positions.push(xPosition(d.speed), .12, yPosition(d.y));
                 let color = viewMode === "overview" ? lightBlue : blue;
+                if (viewMode === "overview" && overviewComparisonActive) color = overviewConditionComparison(d)?.abnormal ? red : green;
                 if (viewMode === "compare" && !boundsOnlyActive) {
                     const actual = actualFor(d);
                     color = isAbnormal(d, actual) ? new THREE.Color(0xdc2626) : new THREE.Color(0x16a34a);
@@ -821,10 +1043,13 @@
             const pointContext = pointCanvas.getContext("2d");
             pointContext.fillStyle = "#fff";
             pointContext.beginPath();
-            pointContext.arc(32, 32, 31.5, 0, Math.PI * 2);
+            pointContext.arc(32, 32, 27, 0, Math.PI * 2);
             pointContext.fill();
             const pointTexture = new THREE.CanvasTexture(pointCanvas);
-            distributionPoints = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 4, sizeAttenuation: false, vertexColors: true, map: pointTexture, alphaTest: .35, transparent: true, opacity: dimensionMode === "2d" ? 1 : 0, depthTest: false, depthWrite: false }));
+            pointTexture.minFilter = THREE.LinearFilter;
+            pointTexture.magFilter = THREE.LinearFilter;
+            pointTexture.generateMipmaps = false;
+            distributionPoints = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, map: pointTexture, alphaTest: .04, transparent: true, opacity: dimensionMode === "2d" ? 1 : 0, depthTest: false, depthWrite: false }));
             distributionPoints.renderOrder = 25;
             root.add(distributionPoints);
         }
@@ -833,6 +1058,7 @@
             if (!colors) return;
             currentRows.forEach((d, index) => {
                 let color = viewMode === "overview" ? lightBlue : blue;
+                if (viewMode === "overview" && overviewComparisonActive) color = overviewConditionComparison(d)?.abnormal ? red : green;
                 if (viewMode === "compare" && !boundsOnlyActive) {
                     const actual = actualFor(d);
                     color = isAbnormal(d, actual) ? new THREE.Color(0xdc2626) : new THREE.Color(0x16a34a);
@@ -848,24 +1074,36 @@
             const metadataCount = overviewPayload.metadata.length;
             const conditionCount = overviewPayload.conditions.length;
             const positions = new Float32Array(metadataCount * currentRows.length * 3);
+            const colors = new Float32Array(metadataCount * currentRows.length * 3);
             const metadataIndices = new Uint16Array(metadataCount * currentRows.length);
             const conditionIndices = new Uint16Array(metadataCount * currentRows.length);
             let cursor = 0;
             for (let metadataIndex = 0; metadataIndex < metadataCount; metadataIndex++) {
                 const offset = metadataIndex * conditionCount;
+                const metadataItem = overviewPayload.metadata[metadataIndex];
                 currentRows.forEach(row => {
                     const value = overviewPayload.upperValues[offset + row.overviewIndex];
                     if (value === null || !Number.isFinite(Number(value))) return;
+                    const actual = overviewActualFor(metadataItem.code, row);
+                    if (overviewComparisonActive && !actual) return;
                     positions[cursor++] = xPosition(row.speed);
                     positions[cursor++] = zPosition(Number(value));
                     positions[cursor++] = yPosition(row.y);
                     const pointIndex = cursor / 3 - 1;
+                    let pointColor = lightBlue;
+                    if (overviewComparisonActive) {
+                        const lower = Number(overviewPayload.lowerValues?.[offset + row.overviewIndex]);
+                        const abnormal = actual.upper > Number(value) || (Number.isFinite(lower) && actual.lower < lower);
+                        pointColor = abnormal ? red : green;
+                    }
+                    colors.set([pointColor.r, pointColor.g, pointColor.b], pointIndex * 3);
                     metadataIndices[pointIndex] = metadataIndex;
                     conditionIndices[pointIndex] = row.overviewIndex;
                 });
             }
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
             geometry.setDrawRange(0, cursor / 3);
             const pointCanvas = document.createElement("canvas");
             pointCanvas.width = pointCanvas.height = 64;
@@ -878,7 +1116,8 @@
             overviewPointCloud = new THREE.Points(
                 geometry,
                 new THREE.PointsMaterial({
-                    color: 0x93c5fd,
+                    color: 0xffffff,
+                    vertexColors: true,
                     size: 2,
                     sizeAttenuation: false,
                     map: pointTexture,
@@ -967,20 +1206,22 @@
             view2dButton.classList.toggle("active", is2d);
             view3dButton.classList.toggle("active", !is2d);
             axisDescription.textContent = viewMode === "overview"
-                ? (is2d ? "X轴：拉速；Y轴：钢种＋宽度；每个点代表一个元数据上限标准。" : "X轴：拉速；Y轴：钢种＋宽度；Z轴：全部元数据上限标准值。")
+                ? (is2d ? "X轴：拉速；Y轴：钢种＋宽度；每个点代表一个元数据上限标准。" : "X轴：拉速；Y轴：钢种＋宽度；Z轴：1000 内放大10倍、1000～7000 按0.5倍延伸、7000 后按底数15压缩；悬浮值为原始值。")
                 : (is2d ? "X轴：拉速；Y轴：钢种＋宽度；点颜色表示所选时间内是否超限。" : "X轴：拉速；Y轴：钢种＋宽度；Z轴：当前元数据上下限值。");
             standardRangeLegend.style.display = is2d || viewMode === "overview" ? "none" : "";
             standardDotsLegend.style.display = selectionLegend.style.display = is2d ? "none" : "";
             standardDotsLegend.innerHTML = viewMode === "overview"
-                ? '<span class="dot" style="background:#93c5fd"></span>全部元数据上限标准'
+                ? (overviewComparisonActive
+                    ? '<span class="dot" style="background:#16a34a"></span>未超限　<span class="dot" style="background:#e11d48"></span>超限（点位高度仍为上限标准）'
+                    : '<span class="dot" style="background:#8b5cf6"></span>全部元数据上限标准（Z轴分段压缩）')
                 : '<span class="dot" style="background:#2563eb"></span>标准下限 <span id="standardUpperLegendDot" class="dot" style="background:#e11d48"></span>标准上限';
             if (is2d) {
                 document.getElementById("actualNormalLegend").style.display = "none";
                 document.getElementById("actualAbnormalLegend").style.display = "none";
                 distributionLegend.style.display = "";
-                distributionLegend.innerHTML = viewMode === "compare"
+                distributionLegend.innerHTML = viewMode === "compare" || (viewMode === "overview" && overviewComparisonActive)
                     ? '<span class="dot" style="background:#16a34a"></span>未超限点位　<span class="dot" style="background:#dc2626"></span>超限点位'
-                    : `<span class="dot" style="background:${viewMode === "overview" ? "#93c5fd" : "#2563eb"}"></span>${viewMode === "overview" ? "元数据上限点" : "工艺点位"}`;
+                    : `<span class="dot" style="background:${viewMode === "overview" ? "#8b5cf6" : "#2563eb"}"></span>${viewMode === "overview" ? "元数据上限点" : "工艺点位"}`;
                 boundsOnlyReset.style.display = "none";
                 document.getElementById("title").textContent = (metadata.selectedOptions[0]?.textContent || "元数据") + "点位分布";
             } else {
@@ -1109,13 +1350,14 @@
             if (!currentRows.length || !bounds) return;
             buildOverviewPointCloud();
             buildDistributionPoints();
-            buildFlatAxes(standardFiltered());
+            buildFlatAxes(axisReferenceRows());
             applyDimensionState();
             updateDimensionStats();
             render();
         };
         function overviewVisiblePointCount() {
             if (!overviewPayload) return 0;
+            if (overviewComparisonActive && overviewPointCloud) return overviewPointCloud.userData.pointCount || 0;
             const conditionCount = overviewPayload.conditions.length;
             let count = 0;
             for (let metadataIndex = 0; metadataIndex < overviewPayload.metadata.length; metadataIndex++) {
@@ -1151,7 +1393,7 @@
             }
         }
         function sprite(text, color = "#64748b", size = 30, weight = 550) { const dpr = 4, c = document.createElement("canvas"), ctx = c.getContext("2d"), font = `${weight} ${size}px "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif`; ctx.font = font; const logicalW = Math.ceil(ctx.measureText(text).width) + 18, logicalH = size + 16; c.width = logicalW * dpr; c.height = logicalH * dpr; ctx.scale(dpr, dpr); ctx.font = font; ctx.fillStyle = color; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, logicalW / 2, logicalH / 2); const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.encoding = THREE.sRGBEncoding; const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false }); const s = new THREE.Sprite(mat); s.scale.set(logicalW / size * 1.02, 1.02, 1); return s }
-        function addLabel(group, text, pos, scale = .7, color = "#64748b", weight = 500) { if (viewMode === "overview" && text === "Z：上下限值") text = "Z：上限标准值"; const isZeroTick = text === "0" && color === "#0f172a", labelColor = isZeroTick ? "#e11d48" : color, labelPos = isZeroTick ? new THREE.Vector3(xMin, -.62, 12) : pos, s = sprite(text, labelColor, 28, weight); s.position.copy(labelPos); s.scale.multiplyScalar(scale / 40); group.add(s); return s }
+        function addLabel(group, text, pos, scale = .7, color = "#64748b", weight = 500) { if (viewMode === "overview" && text === "Z：上下限值") text = "Z：上限标准值（分段压缩）"; const isZeroTick = text === "0" && color === "#0f172a", labelColor = isZeroTick ? "#e11d48" : color, labelPos = isZeroTick ? new THREE.Vector3(xMin, -.62, 12) : pos, s = sprite(text, labelColor, 28, weight); s.position.copy(labelPos); s.scale.multiplyScalar(scale / 40); group.add(s); return s }
         function applyMetadataBuildTransitionState() {
             if (!metadataSceneBuildMode) return;
             if (segments) segments.material.opacity = 0;
@@ -1160,7 +1402,7 @@
             setObjectOpacity(gridGroup, 0);
             setObjectOpacity(labelGroup, 0);
         }
-        function buildAxes(rows) { gridGroup = new THREE.Group(); labelGroup = new THREE.Group(); root.add(gridGroup, labelGroup); const gridMat = new THREE.LineBasicMaterial({ color: 0xd7dee8, transparent: true, opacity: .56 }), axisMat = new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: .9 }), pts = [], axisYMin = Math.min(0, zPosition(bounds.zmin)), axisYMax = Math.max(0, zPosition(bounds.zmax)); for (let i = 0; i <= 5; i++) { const x = xMin + i * (xMax - xMin) / 5; pts.push(x, 0, -12, x, 0, 12); const z = -12 + i * 4.8; pts.push(xMin, 0, z, xMax, 0, z) } for (let i = 1; i <= 5; i++) { const y = axisYMin + i * (axisYMax - axisYMin) / 5; if (Math.abs(y) < 1e-9) continue; pts.push(xMin, y, -12, xMax, y, -12, xMin, y, -12, xMin, y, 12) } const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); gridGroup.add(new THREE.LineSegments(g, gridMat)); const ag = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12), new THREE.Vector3(xMax + 1, 0, 12), new THREE.Vector3(xMin, 0, -12), new THREE.Vector3(xMin, 0, 13), new THREE.Vector3(xMin, axisYMin, 12), new THREE.Vector3(xMin, axisYMax, 12)]); gridGroup.add(new THREE.LineSegments(ag, axisMat)); const originCanvas = document.createElement("canvas"); originCanvas.width = 64; originCanvas.height = 64; const originContext = originCanvas.getContext("2d"); originContext.fillStyle = "#111827"; originContext.beginPath(); originContext.arc(32, 32, 30, 0, Math.PI * 2); originContext.fill(); const originTexture = new THREE.CanvasTexture(originCanvas), originGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12)]), originPoint = new THREE.Points(originGeometry, new THREE.PointsMaterial({ color: 0xffffff, map: originTexture, alphaTest: .5, transparent: true, size: 7, sizeAttenuation: false, depthTest: false, depthWrite: false })); originPoint.renderOrder = 20; gridGroup.add(originPoint); addLabel(labelGroup, "X：拉速", new THREE.Vector3(xMax + 1.6, -.75, 12.2), .52, "#1e293b", 650); addLabel(labelGroup, "Y：钢种＋宽度", new THREE.Vector3(xMin, -1.45, -13.5), .5, "#1e293b", 650); addLabel(labelGroup, "Z：上下限值", new THREE.Vector3(xMin - .7, axisYMax + 1.5, 12.2), .5, "#1e293b", 650); const actualSpeeds = [...new Set(rows.map(d => d.speed))].sort((a, b) => a - b), minorMin = Math.ceil(xDataMin * 100) / 100, minorMax = Math.floor(bounds.xmax * 100) / 100, minorSpeeds = Array.from({ length: Math.round((minorMax - minorMin) * 100) + 1 }, (_, i) => Number((minorMin + i / 100).toFixed(2))), labelMin = Math.ceil(xDataMin * 20) / 20, labelMax = Math.floor(bounds.xmax * 20) / 20, labelSpeeds = Array.from({ length: Math.round((labelMax - labelMin) * 20) + 1 }, (_, i) => Number((labelMin + i / 20).toFixed(2))), speedTickPts = [xMin, 0, 12, xMin, 0, 12.3]; const breakX = xMin + 1.1; speedTickPts.push(breakX - .18, -.06, 11.82, breakX + .02, .18, 12.18, breakX + .12, -.06, 11.82, breakX + .32, .18, 12.18); minorSpeeds.forEach(v => { const x = xPosition(v); speedTickPts.push(x, 0, 12, x, 0, 12.13) }); labelSpeeds.forEach(v => { const x = xPosition(v); if (Math.abs(v) > 1e-9) { const tick = addLabel(labelGroup, displaySpeed(v), new THREE.Vector3(x, -1.02, 12.65), .55, "#475569", 600); tick.material.rotation = Math.PI / 2 } speedTickPts.push(x, 0, 12, x, 0, 12.3) }); const speedTickGeo = new THREE.BufferGeometry(); speedTickGeo.setAttribute("position", new THREE.Float32BufferAttribute(speedTickPts, 3)); gridGroup.add(new THREE.LineSegments(speedTickGeo, new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: .65 }))); const zRange = bounds.zmax - bounds.zmin, zTicks = []; for (let i = 0; i < 5; i++) { const t = i / 4, v = bounds.zmin + t * zRange; zTicks.push({ v, y: zPosition(v), zero: false }) } if (bounds.zmin <= 0 && bounds.zmax >= 0) { const zeroIdx = zTicks.findIndex(t => Math.abs(t.v) <= zRange * .04); if (zeroIdx >= 0) { zTicks[zeroIdx].v = 0; zTicks[zeroIdx].zero = true } else { zTicks.push({ v: 0, y: 0, zero: true }) } } zTicks.forEach(t => { addLabel(labelGroup, t.zero ? "0" : Number(t.v.toPrecision(4)).toString(), new THREE.Vector3(t.zero ? xMin : xMin - .72, t.y, t.zero ? 12 : 12.35), t.zero ? .62 : .58, t.zero ? "#0f172a" : "#475569", t.zero ? 700 : 600) }); const ys = [...new Set(rows.map(d => d.y))].sort((a, b) => a - b), count = Math.min(6, ys.length), chosen = []; for (let i = 0; i < count; i++) { const idx = count === 1 ? 0 : Math.round(i * (ys.length - 1) / (count - 1)); if (!chosen.includes(ys[idx])) chosen.push(ys[idx]) } chosen.forEach(v => { const d = rows.find(r => r.y === v), z = yPosition(v); addLabel(labelGroup, d.yLabel.replace("｜", " · "), new THREE.Vector3(xMin - .62, -.68, z), .52, "#475569", 600) }) } function build() { document.getElementById("loading").style.display = "flex"; disposeObject(root); actualPointLayers = []; currentRows = filtered(); const axisRows = standardFiltered(); const positiveSpeeds = axisRows.map(d => Number(d.speed)).filter(v => v > 0); xDataMin = positiveSpeeds.length ? Math.min(...positiveSpeeds) : 0; xDataMax = Math.max(...axisRows.map(d => Number(d.speed))); ySlots = [...new Set(axisRows.map(d => d.y))].sort((a, b) => a - b); updateStats(); detail.style.display = "none"; if (!currentRows.length || !axisRows.length) { document.getElementById("loading").textContent = "没有符合条件的数据"; return } bounds = { xmin: Math.min(0, ...axisRows.map(d => d.speed)), xmax: Math.max(...axisRows.map(d => d.speed)), ymin: Math.min(...axisRows.map(d => d.y)), ymax: Math.max(...axisRows.map(d => d.y)), zmin: Math.min(0, ...axisRows.map(d => d.lower)), zmax: Math.max(...axisRows.map(d => d.upper)) }; if (bounds.zmin === bounds.zmax) bounds.zmax = bounds.zmin + 1; const linePos = [], lowPos = [], upPos = []; currentRows.forEach(d => { const x = xPosition(d.speed), z = yPosition(d.y), lo = zPosition(d.lower), hi = zPosition(d.upper); linePos.push(x, lo, z, x, hi, z); lowPos.push(x, lo, z); upPos.push(x, hi, z) }); const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePos, 3)); segments = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: blue, transparent: true, opacity: 1 })); segments.userData.kind = "line"; root.add(segments); const lowGeo = new THREE.BufferGeometry(); lowGeo.setAttribute("position", new THREE.Float32BufferAttribute(lowPos, 3)); lowerPoints = new THREE.Points(lowGeo, new THREE.PointsMaterial({ color: blue, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); lowerPoints.userData.kind = "lower"; root.add(lowerPoints); const upGeo = new THREE.BufferGeometry(); upGeo.setAttribute("position", new THREE.Float32BufferAttribute(upPos, 3)); upperPoints = new THREE.Points(upGeo, new THREE.PointsMaterial({ color: red, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); upperPoints.userData.kind = "upper"; root.add(upperPoints); const normalPos = [], abnormalPos = [], normalRows = [], abnormalRows = []; if (viewMode === "compare") currentRows.forEach(d => { const a = actualFor(d); if (!a) return; const x = xPosition(d.speed), z = yPosition(d.y), abnormal = isAbnormal(d, a), target = abnormal ? abnormalPos : normalPos, targetRows = abnormal ? abnormalRows : normalRows; target.push(x, zPosition(a.lower), z, x, zPosition(a.upper), z); targetRows.push(d) }); function addActualLayer(positions, rows, color, kind) { if (!positions.length) return null; const geometry = new THREE.BufferGeometry(); geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const layer = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 })); layer.userData = { kind, rows }; root.add(layer); const pointGeometry = new THREE.BufferGeometry(); pointGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const pointLayer = new THREE.Points(pointGeometry, new THREE.PointsMaterial({ color, size: 4, sizeAttenuation: false })); pointLayer.visible = !boundsOnlyActive; actualPointLayers.push(pointLayer); root.add(pointLayer); layer.visible = !boundsOnlyActive; return layer } actualNormal = addActualLayer(normalPos, normalRows, 0x16a34a, "actualNormal"); actualAbnormal = addActualLayer(abnormalPos, abnormalRows, 0xdc2626, "actualAbnormal"); const hg = new THREE.BufferGeometry(); hg.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); highlightLine = new THREE.LineSegments(hg, new THREE.LineBasicMaterial({ color: orange, linewidth: 3, transparent: true, opacity: 0 })); root.add(highlightLine); const hp = new THREE.BufferGeometry(); hp.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); hp.setAttribute("color", new THREE.Float32BufferAttribute([blue.r, blue.g, blue.b, red.r, red.g, red.b], 3)); const dotCanvas = document.createElement("canvas"); dotCanvas.width = 64; dotCanvas.height = 64; const dotContext = dotCanvas.getContext("2d"); dotContext.fillStyle = "#ffffff"; dotContext.beginPath(); dotContext.arc(32, 32, 30, 0, Math.PI * 2); dotContext.fill(); const dotTexture = new THREE.CanvasTexture(dotCanvas); highlightPoints = new THREE.Points(hp, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, map: dotTexture, alphaTest: .1, depthWrite: false, transparent: true, opacity: 0 })); root.add(highlightPoints); buildAxes(axisRows); document.getElementById("loading").style.display = "none"; render() }
+        function buildAxes(rows) { gridGroup = new THREE.Group(); labelGroup = new THREE.Group(); root.add(gridGroup, labelGroup); const gridMat = new THREE.LineBasicMaterial({ color: 0xd7dee8, transparent: true, opacity: .56 }), axisMat = new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: .9 }), pts = [], axisYMin = Math.min(0, zPosition(bounds.zmin)), axisYMax = Math.max(0, zPosition(bounds.zmax)); for (let i = 0; i <= 5; i++) { const x = xMin + i * (xMax - xMin) / 5; pts.push(x, 0, -12, x, 0, 12); const z = -12 + i * 4.8; pts.push(xMin, 0, z, xMax, 0, z) } for (let i = 1; i <= 5; i++) { const y = axisYMin + i * (axisYMax - axisYMin) / 5; if (Math.abs(y) < 1e-9) continue; pts.push(xMin, y, -12, xMax, y, -12, xMin, y, -12, xMin, y, 12) } const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); gridGroup.add(new THREE.LineSegments(g, gridMat)); const ag = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12), new THREE.Vector3(xMax + 1, 0, 12), new THREE.Vector3(xMin, 0, -12), new THREE.Vector3(xMin, 0, 13), new THREE.Vector3(xMin, axisYMin, 12), new THREE.Vector3(xMin, axisYMax, 12)]); gridGroup.add(new THREE.LineSegments(ag, axisMat)); const originCanvas = document.createElement("canvas"); originCanvas.width = 64; originCanvas.height = 64; const originContext = originCanvas.getContext("2d"); originContext.fillStyle = "#111827"; originContext.beginPath(); originContext.arc(32, 32, 30, 0, Math.PI * 2); originContext.fill(); const originTexture = new THREE.CanvasTexture(originCanvas), originGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(xMin, 0, 12)]), originPoint = new THREE.Points(originGeometry, new THREE.PointsMaterial({ color: 0xffffff, map: originTexture, alphaTest: .5, transparent: true, size: 7, sizeAttenuation: false, depthTest: false, depthWrite: false })); originPoint.renderOrder = 20; gridGroup.add(originPoint); addLabel(labelGroup, "X：拉速", new THREE.Vector3(xMax + 1.6, -.75, 12.2), .52, "#1e293b", 650); addLabel(labelGroup, "Y：钢种＋宽度", new THREE.Vector3(xMin, -1.45, -13.5), .5, "#1e293b", 650); addLabel(labelGroup, "Z：上下限值", new THREE.Vector3(xMin - .7, axisYMax + 1.5, 12.2), .5, "#1e293b", 650); const actualSpeeds = [...new Set(rows.map(d => d.speed))].sort((a, b) => a - b), minorMin = Math.ceil(xDataMin * 100) / 100, minorMax = Math.floor(bounds.xmax * 100) / 100, minorSpeeds = Array.from({ length: Math.round((minorMax - minorMin) * 100) + 1 }, (_, i) => Number((minorMin + i / 100).toFixed(2))), labelMin = Math.ceil(xDataMin * 20) / 20, labelMax = Math.floor(bounds.xmax * 20) / 20, labelSpeeds = Array.from({ length: Math.round((labelMax - labelMin) * 20) + 1 }, (_, i) => Number((labelMin + i / 20).toFixed(2))), speedTickPts = [xMin, 0, 12, xMin, 0, 12.3]; const breakX = xMin + 1.1; speedTickPts.push(breakX - .18, -.06, 11.82, breakX + .02, .18, 12.18, breakX + .12, -.06, 11.82, breakX + .32, .18, 12.18); minorSpeeds.forEach(v => { const x = xPosition(v); speedTickPts.push(x, 0, 12, x, 0, 12.13) }); labelSpeeds.forEach(v => { const x = xPosition(v); if (Math.abs(v) > 1e-9) { const tick = addLabel(labelGroup, displaySpeed(v), new THREE.Vector3(x, -1.02, 12.65), .55, "#475569", 600); tick.material.rotation = Math.PI / 2 } speedTickPts.push(x, 0, 12, x, 0, 12.3) }); const speedTickGeo = new THREE.BufferGeometry(); speedTickGeo.setAttribute("position", new THREE.Float32BufferAttribute(speedTickPts, 3)); gridGroup.add(new THREE.LineSegments(speedTickGeo, new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: .65 }))); const zRange = bounds.zmax - bounds.zmin, zTicks = []; if (viewMode === "overview") { const transformedMin = overviewSymlog(bounds.zmin), transformedMax = overviewSymlog(bounds.zmax); for (let i = 0; i <= 5; i++) { const t = i / 5, transformed = transformedMin + t * (transformedMax - transformedMin), v = overviewSymlogInverse(transformed); zTicks.push({ v, y: axisYMin + t * (axisYMax - axisYMin), zero: Math.abs(v) < 1e-9 }) } } else { for (let i = 0; i < 5; i++) { const t = i / 4, v = bounds.zmin + t * zRange; zTicks.push({ v, y: zPosition(v), zero: false }) } if (bounds.zmin <= 0 && bounds.zmax >= 0) { const zeroIdx = zTicks.findIndex(t => Math.abs(t.v) <= zRange * .04); if (zeroIdx >= 0) { zTicks[zeroIdx].v = 0; zTicks[zeroIdx].zero = true } else { zTicks.push({ v: 0, y: 0, zero: true }) } } } zTicks.forEach(t => { const label = viewMode === "overview" ? overviewTickLabel(t.v) : (t.zero ? "0" : Number(t.v.toPrecision(4)).toString()); addLabel(labelGroup, label, new THREE.Vector3(t.zero ? xMin : xMin - .72, t.y, t.zero ? 12 : 12.35), t.zero ? .62 : .58, t.zero ? "#0f172a" : "#475569", t.zero ? 700 : 600) }); const ys = [...new Set(rows.map(d => d.y))].sort((a, b) => a - b), count = Math.min(6, ys.length), chosen = []; for (let i = 0; i < count; i++) { const idx = count === 1 ? 0 : Math.round(i * (ys.length - 1) / (count - 1)); if (!chosen.includes(ys[idx])) chosen.push(ys[idx]) } chosen.forEach(v => { const d = rows.find(r => r.y === v), z = yPosition(v); addLabel(labelGroup, d.yLabel.replace("｜", " · "), new THREE.Vector3(xMin - .62, -.68, z), .52, "#475569", 600) }) } function build() { document.getElementById("loading").style.display = "flex"; disposeObject(root); actualPointLayers = []; currentRows = filtered(); const axisRows = axisReferenceRows(); const positiveSpeeds = axisRows.map(d => Number(d.speed)).filter(v => v > 0); xDataMin = positiveSpeeds.length ? Math.min(...positiveSpeeds) : 0; xDataMax = Math.max(...axisRows.map(d => Number(d.speed))); ySlots = [...new Set(axisRows.map(d => d.y))].sort((a, b) => a - b); updateStats(); detail.style.display = "none"; if (!currentRows.length || !axisRows.length) { document.getElementById("loading").textContent = "没有符合条件的数据"; return } bounds = { xmin: Math.min(0, ...axisRows.map(d => d.speed)), xmax: Math.max(...axisRows.map(d => d.speed)), ymin: Math.min(...axisRows.map(d => d.y)), ymax: Math.max(...axisRows.map(d => d.y)), zmin: Math.min(0, ...axisRows.map(d => d.lower)), zmax: Math.max(...axisRows.map(d => d.upper)) }; if (bounds.zmin === bounds.zmax) bounds.zmax = bounds.zmin + 1; const linePos = [], lowPos = [], upPos = []; currentRows.forEach(d => { const x = xPosition(d.speed), z = yPosition(d.y), lo = zPosition(d.lower), hi = zPosition(d.upper); linePos.push(x, lo, z, x, hi, z); lowPos.push(x, lo, z); upPos.push(x, hi, z) }); const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePos, 3)); segments = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: blue, transparent: true, opacity: 1 })); segments.userData.kind = "line"; root.add(segments); const lowGeo = new THREE.BufferGeometry(); lowGeo.setAttribute("position", new THREE.Float32BufferAttribute(lowPos, 3)); lowerPoints = new THREE.Points(lowGeo, new THREE.PointsMaterial({ color: blue, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); lowerPoints.userData.kind = "lower"; root.add(lowerPoints); const upGeo = new THREE.BufferGeometry(); upGeo.setAttribute("position", new THREE.Float32BufferAttribute(upPos, 3)); upperPoints = new THREE.Points(upGeo, new THREE.PointsMaterial({ color: red, size: 2, sizeAttenuation: false, transparent: true, opacity: 1 })); upperPoints.userData.kind = "upper"; root.add(upperPoints); const normalPos = [], abnormalPos = [], normalRows = [], abnormalRows = []; if (viewMode === "compare") currentRows.forEach(d => { const a = actualFor(d); if (!a) return; const x = xPosition(d.speed), z = yPosition(d.y), abnormal = isAbnormal(d, a), target = abnormal ? abnormalPos : normalPos, targetRows = abnormal ? abnormalRows : normalRows; target.push(x, zPosition(a.lower), z, x, zPosition(a.upper), z); targetRows.push(d) }); function addActualLayer(positions, rows, color, kind) { if (!positions.length) return null; const geometry = new THREE.BufferGeometry(); geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const layer = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 })); layer.userData = { kind, rows }; root.add(layer); const pointGeometry = new THREE.BufferGeometry(); pointGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); const pointLayer = new THREE.Points(pointGeometry, new THREE.PointsMaterial({ color, size: 4, sizeAttenuation: false })); pointLayer.visible = !boundsOnlyActive; actualPointLayers.push(pointLayer); root.add(pointLayer); layer.visible = !boundsOnlyActive; return layer } actualNormal = addActualLayer(normalPos, normalRows, 0x16a34a, "actualNormal"); actualAbnormal = addActualLayer(abnormalPos, abnormalRows, 0xdc2626, "actualAbnormal"); const hg = new THREE.BufferGeometry(); hg.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); highlightLine = new THREE.LineSegments(hg, new THREE.LineBasicMaterial({ color: orange, linewidth: 3, transparent: true, opacity: 0 })); root.add(highlightLine); const hp = new THREE.BufferGeometry(); hp.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); hp.setAttribute("color", new THREE.Float32BufferAttribute([blue.r, blue.g, blue.b, red.r, red.g, red.b], 3)); const dotCanvas = document.createElement("canvas"); dotCanvas.width = 64; dotCanvas.height = 64; const dotContext = dotCanvas.getContext("2d"); dotContext.fillStyle = "#ffffff"; dotContext.beginPath(); dotContext.arc(32, 32, 30, 0, Math.PI * 2); dotContext.fill(); const dotTexture = new THREE.CanvasTexture(dotCanvas); highlightPoints = new THREE.Points(hp, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, map: dotTexture, alphaTest: .1, depthWrite: false, transparent: true, opacity: 0 })); root.add(highlightPoints); buildAxes(axisRows); document.getElementById("loading").style.display = "none"; render() }
         function updateStats() {
             document.getElementById("title").textContent = viewMode === "overview" ? "全部元数据上限总览" : (metadata.selectedOptions[0]?.textContent || "元数据") + "上下限";
             if (viewMode === "overview") {
@@ -1223,7 +1465,7 @@
             actualPointLayers.forEach(layer => { layer.material.transparent = true; layer.material.opacity = .18 });
             if (distributionPoints) distributionPoints.material.opacity = dimensionMode === "2d" ? .42 : 0;
 
-            const actual = timeComparisonVisible() ? actualFor(d) : null;
+            const actual = viewMode === "overview" ? d.overviewActual : (timeComparisonVisible() ? actualFor(d) : null);
             const x = xPosition(d.speed), z = yPosition(d.y);
             const standardPositions = viewMode === "overview" ? [x, zPosition(d.upper), z, x, zPosition(d.upper), z] : [x, zPosition(d.lower), z, x, zPosition(d.upper), z];
             if (viewMode === "overview" && dimensionMode === "3d" && overviewPointCloud && selectedOverviewPoint) {
@@ -1279,13 +1521,13 @@
 
             selectionOverlayData = { d, actual };
             const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`;
-            const pointStatus = viewMode === "compare"
+            const pointStatus = (viewMode === "compare" || (viewMode === "overview" && actual))
                 ? `<br><b style="color:${isAbnormal(d, actual) ? '#dc2626' : '#15803d'}">${isAbnormal(d, actual) ? '超限点位' : '未超限点位'}</b>`
                 : "";
             detail.innerHTML = viewMode === "overview" && dimensionMode === "2d"
                 ? `<b>生产条件点位</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>包含上限点：${overviewConditionPointCount(d.overviewIndex).toLocaleString()} 个`
                 : viewMode === "overview"
-                ? `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>上限标准：${Number(d.upper).toPrecision(6)}${metadataButtonHtml()}`
+                ? `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${pointStatus}${actual ? `<br>实际范围：${Number(actual.lower).toPrecision(6)} ～ ${Number(actual.upper).toPrecision(6)}` : ""}${metadataButtonHtml()}`
                 : dimensionMode === "2d"
                 ? `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}${pointStatus}${drillButtonHtml()}`
                 : `<b>${d.metadata}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}${drillButtonHtml()}${overviewReturnButtonHtml()}`;
@@ -1397,15 +1639,18 @@
             const conditionIndex = overviewPointCloud.userData.conditionIndices[pointIndex];
             const metadataItem = overviewPayload.metadata[metadataIndex];
             const condition = overviewPayload.conditions[conditionIndex];
-            const value = overviewPayload.upperValues[metadataIndex * overviewPayload.conditions.length + conditionIndex];
+            const offset = metadataIndex * overviewPayload.conditions.length + conditionIndex;
+            const value = overviewPayload.upperValues[offset];
             if (!metadataItem || !condition || value === null || !Number.isFinite(Number(value))) return null;
+            const lowerValue = Number(overviewPayload.lowerValues?.[offset]);
             return {
                 ...condition,
                 overviewIndex: conditionIndex,
                 metadata: metadataItem.name,
                 metadataCode: metadataItem.code,
-                lower: Number(value),
+                lower: Number.isFinite(lowerValue) ? lowerValue : Number(value),
                 upper: Number(value),
+                overviewActual: overviewActualFor(metadataItem.code, condition) || null,
             };
         }
         let lastPick = null;
@@ -1430,7 +1675,7 @@
             const hit = candidates[index];
             selectRow(currentRows.indexOf(hit.d), hit.source);
         }
-        function showTip(e, d) { if (!d) { tooltip.style.display = "none"; return } const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; const isFlatOverview = viewMode === "overview" && dimensionMode === "2d"; const limits = isFlatOverview ? `<br>包含上限点：${overviewConditionPointCount(d.overviewIndex).toLocaleString()} 个` : viewMode === "overview" ? `<br>上限标准：${Number(d.upper).toPrecision(6)}` : `<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}`; const title = isFlatOverview ? "生产条件点位" : d.metadata; tooltip.innerHTML = `<b>${title}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}${limits}`; const r = view.getBoundingClientRect(), maxX = r.width - 310, maxY = r.height - 90; tooltip.style.left = Math.max(0, Math.min(maxX, e.clientX - r.left)) + "px"; tooltip.style.top = Math.max(0, Math.min(maxY, e.clientY - r.top)) + "px"; tooltip.style.display = "block" }
+        function showTip(e, d) { if (!d) { tooltip.style.display = "none"; return } const sceneName = `${d.steel}_${displaySpeed(d.speed)}_${d.width}_3ST_${d.mode}`; const isFlatOverview = viewMode === "overview" && dimensionMode === "2d"; const actual = d.overviewActual; const overviewComparison = actual ? `<br>实际最小值：${Number(actual.lower).toPrecision(6)}<br>实际最大值：${Number(actual.upper).toPrecision(6)}<br><b style="color:${isAbnormal(d, actual) ? '#dc2626' : '#15803d'}">${isAbnormal(d, actual) ? '超限' : '未超限'}</b>` : ""; const limits = isFlatOverview ? `<br>包含上限点：${overviewConditionPointCount(d.overviewIndex).toLocaleString()} 个` : viewMode === "overview" ? `<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${overviewComparison}` : `<br>下限标准：${Number(d.lower).toPrecision(6)}<br>上限标准：${Number(d.upper).toPrecision(6)}${comparisonHtml(d)}`; const title = isFlatOverview ? "生产条件点位" : d.metadata; tooltip.innerHTML = `<b>${title}</b><br>场景：${sceneName}<br>钢种：${d.steel}<br>宽度：${d.width}<br>拉速：${displaySpeed(d.speed)}${limits}`; const r = view.getBoundingClientRect(), maxX = r.width - 310, maxY = r.height - 90; tooltip.style.left = Math.max(0, Math.min(maxX, e.clientX - r.left)) + "px"; tooltip.style.top = Math.max(0, Math.min(maxY, e.clientY - r.top)) + "px"; tooltip.style.display = "block" }
         let hoverFrame = 0, overviewHoverTimer = 0, lastOverviewHoverAt = 0, suppressSelectionClick = false;
         canvas.addEventListener("pointerdown", e => {
             tooltip.style.display = "none";
@@ -1608,6 +1853,7 @@
             overviewPayload.conditions.forEach((condition, conditionIndex) => {
                 const value = overviewPayload.upperValues[metadataIndex * conditionCount + conditionIndex];
                 if (value === null || !Number.isFinite(Number(value))) return;
+                if (overviewComparisonActive && !overviewActualFor(code, condition)) return;
                 positions.push(xPosition(condition.speed), zPosition(Number(value)), yPosition(condition.y));
             });
             const geometry = new THREE.BufferGeometry();
@@ -1636,6 +1882,33 @@
             if (layer.material.map) layer.material.map.dispose();
             layer.material.dispose();
         }
+        async function restoreOverviewAfterTransitionFailure(error, filterState = null) {
+            const message = `切换失败，已恢复总览：${error.message}`;
+            dataRequestVersion++;
+            metadataSceneBuildMode = null;
+            standardUpperTransition = null;
+            metadata.value = "__all__";
+            renderMetadataOptions("", "__all__");
+            dimensionMode = "3d";
+            saved3dCamera = null;
+            overviewReturnPoint = null;
+            overviewReturnFilters = null;
+            overviewDropdownFilters = null;
+            try {
+                await loadOverview(filterState, true);
+                camera.position.set(31, 18, 29);
+                camera.up.set(0, 1, 0);
+                controls.target.set(0, 5.2, 0);
+                camera.lookAt(controls.target);
+                applyDimensionState();
+            } catch (restoreError) {
+                dateStatus.textContent = `${message}；恢复时又发生错误：${restoreError.message}`;
+                dateStatus.classList.add("error");
+                return;
+            }
+            dateStatus.textContent = message;
+            dateStatus.classList.add("error");
+        }
         function createTemporaryUpperLayer(positionArray) {
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute("position", new THREE.Float32BufferAttribute(Array.from(positionArray), 3));
@@ -1657,14 +1930,27 @@
             const code = metadata.value;
             const item = metadataCatalog.find(row => row.code === code);
             if (!item || metadataSwitchAnimating) return;
+            const inheritedTimeRange = overviewComparisonActive
+                ? { start: selectedStartDate, end: selectedEndDate }
+                : null;
+            const sourceFilters = captureFilterState();
+            overviewDropdownFilters = sourceFilters;
             metadataSwitchAnimating = true;
-            metadata.disabled = true;
+            setMetadataDisabled(true);
             controls.enabled = false;
             const sourceCloud = overviewPointCloud;
             const sourceOpacity = sourceCloud?.material.opacity ?? .9;
             const selectedLayer = createOverviewMetadataLayer(code);
             let previousAxes = null;
             try {
+                dateStatus.textContent = inheritedTimeRange ? "正在准备该元数据的时间对比…" : "正在准备该元数据上下限…";
+                dateStatus.classList.remove("error");
+                const [prefetchedStandards, prefetchedDaily] = await Promise.all([
+                    fetchJson(`${API_BASE}/standards?code=${encodeURIComponent(code)}`),
+                    inheritedTimeRange
+                        ? fetchJson(`${API_BASE}/daily?code=${encodeURIComponent(code)}&start=${inheritedTimeRange.start}&end=${inheritedTimeRange.end}`)
+                        : Promise.resolve(null),
+                ]);
                 await animateTransition(520, t => {
                     if (sourceCloud) sourceCloud.material.opacity = sourceOpacity * (1 - t);
                     if (selectedLayer) selectedLayer.material.opacity = .9 * t;
@@ -1688,7 +1974,10 @@
                 }
                 scene.add(previousAxes);
                 metadataSceneBuildMode = "to-standard";
-                await loadStandards();
+                await loadStandards({ deferBuild: Boolean(inheritedTimeRange), prefetchedRecords: prefetchedStandards, filterState: sourceFilters });
+                if (inheritedTimeRange) {
+                    await loadMetadataTimeComparison(code, inheritedTimeRange.start, inheritedTimeRange.end, prefetchedDaily, sourceFilters);
+                }
                 metadataSceneBuildMode = null;
                 const finalLines = segments.geometry.attributes.position.array.slice();
                 const finalLower = lowerPoints.geometry.attributes.position.array.slice();
@@ -1774,8 +2063,7 @@
                 standardUpperTransition = null;
                 saved3dCamera = { position: toPosition.clone(), target: toTarget.clone(), up: toUp.clone() };
             } catch (error) {
-                dateStatus.textContent = error.message;
-                dateStatus.classList.add("error");
+                await restoreOverviewAfterTransitionFailure(error, sourceFilters);
             } finally {
                 standardUpperTransition = null;
                 metadataSceneBuildMode = null;
@@ -1785,26 +2073,41 @@
                     disposeObject(previousAxes);
                 }
                 metadataSwitchAnimating = false;
-                metadata.disabled = false;
+                setMetadataDisabled(false);
                 controls.enabled = true;
                 controls.enableRotate = dimensionMode === "3d";
                 controls.update();
                 render();
             }
         }
-        let metadataSwitchAnimating = false, overviewReturnPoint = null;
+        let metadataSwitchAnimating = false, overviewReturnPoint = null, overviewReturnFilters = null, overviewDropdownFilters = null;
         async function openSelectedMetadata() {
             const pickedOverviewPoint = selectedRowData ? { ...selectedRowData } : null;
             const code = pickedOverviewPoint?.metadataCode;
             if (metadataSwitchAnimating || !code || !metadataCatalog.some(row => row.code === code)) return;
+            const inheritedTimeRange = overviewComparisonActive
+                ? { start: selectedStartDate, end: selectedEndDate }
+                : null;
+            dataRequestVersion++;
             metadataSwitchAnimating = true;
             controls.enabled = false;
             try {
                 overviewReturnPoint = pickedOverviewPoint;
+                overviewReturnFilters = {
+                    spec: spec.value,
+                    speed: speed.value,
+                    timeActive: overviewComparisonActive,
+                    start: overviewComparisonActive ? selectedStartDate : "",
+                    end: overviewComparisonActive ? selectedEndDate : "",
+                };
                 await switchDimension("2d", { preserveSelection: true });
                 metadata.value = code;
+                renderMetadataOptions("", code);
                 closeDrilldown();
-                await loadStandards();
+                await loadStandards({ deferBuild: Boolean(inheritedTimeRange), filterState: overviewReturnFilters });
+                if (inheritedTimeRange) {
+                    await loadMetadataTimeComparison(code, inheritedTimeRange.start, inheritedTimeRange.end, null, overviewReturnFilters);
+                }
                 const selected = currentRows.find(row =>
                     row.metadataCode === code &&
                     row.steel === pickedOverviewPoint.steel &&
@@ -1822,8 +2125,7 @@
                 controls.enabled = true;
                 await switchDimension("3d", { preserveSelection: true });
             } catch (error) {
-                dateStatus.textContent = error.message;
-                dateStatus.classList.add("error");
+                await restoreOverviewAfterTransitionFailure(error, overviewReturnFilters);
                 applyDates.disabled = false;
             } finally {
                 metadataSwitchAnimating = false;
@@ -1837,30 +2139,37 @@
         async function returnToOverview() {
             const picked = overviewReturnPoint ? { ...overviewReturnPoint } : null;
             if (!picked || metadataSwitchAnimating) return;
+            dataRequestVersion++;
             metadataSwitchAnimating = true;
-            metadata.disabled = true;
+            setMetadataDisabled(true);
             controls.enabled = false;
             try {
                 // 详情卡片的返回入口保持原来的镜头叙事：单个元数据三维 → 二维 → 总览三维。
                 await switchDimension("2d", { preserveSelection: true });
                 metadata.value = "__all__";
-                await loadOverview();
+                renderMetadataOptions("", "__all__");
+                await loadOverview(overviewReturnFilters, true);
                 const metadataIndex = overviewPayload.metadata.findIndex(row => row.code === picked.metadataCode);
                 const conditionIndex = overviewPayload.conditions.findIndex(row =>
                     row.steel === picked.steel && Number(row.width) === Number(picked.width) &&
                     Number(row.speed).toFixed(2) === Number(picked.speed).toFixed(2) && row.mode === picked.mode
                 );
-                if (metadataIndex >= 0 && conditionIndex >= 0) {
+                const comparisonPointVisible = !overviewComparisonActive || (metadataIndex >= 0 && conditionIndex >= 0 && overviewActualFor(picked.metadataCode, overviewPayload.conditions[conditionIndex]));
+                const conditionVisible = conditionIndex >= 0 && currentRows.some(row => row.overviewIndex === conditionIndex) && comparisonPointVisible;
+                if (metadataIndex >= 0 && conditionVisible) {
                     const condition = overviewPayload.conditions[conditionIndex];
-                    const upper = overviewPayload.upperValues[metadataIndex * overviewPayload.conditions.length + conditionIndex];
+                    const offset = metadataIndex * overviewPayload.conditions.length + conditionIndex;
+                    const upper = overviewPayload.upperValues[offset];
+                    const lower = Number(overviewPayload.lowerValues?.[offset]);
                     if (upper !== null && Number.isFinite(Number(upper))) {
                         selectRow(-1, "gold", {
                             ...condition,
                             overviewIndex: conditionIndex,
                             metadata: overviewPayload.metadata[metadataIndex].name,
                             metadataCode: picked.metadataCode,
-                            lower: Number(upper),
+                            lower: Number.isFinite(lower) ? lower : Number(upper),
                             upper: Number(upper),
+                            overviewActual: overviewActualFor(picked.metadataCode, condition) || null,
                         });
                     }
                 }
@@ -1872,12 +2181,12 @@
                 controls.enabled = true;
                 await switchDimension("3d", { preserveSelection: true, fadeOverviewIn: true });
                 overviewReturnPoint = null;
+                overviewReturnFilters = null;
             } catch (error) {
-                dateStatus.textContent = error.message;
-                dateStatus.classList.add("error");
+                await restoreOverviewAfterTransitionFailure(error, overviewReturnFilters);
             } finally {
                 metadataSwitchAnimating = false;
-                metadata.disabled = false;
+                setMetadataDisabled(false);
                 controls.enabled = true;
                 controls.enableRotate = dimensionMode === "3d";
                 controls.update();
@@ -1890,7 +2199,9 @@
             if (e.target.closest("[data-drill]")) openSelectedDrilldown();
         });
         window.addEventListener("keydown", e => { if (e.key === "Escape") closeDrilldown() });
-        function resetCameraView() { camera.position.set(31, 18, 29); controls.target.set(0, 5.2, 0); controls.update(); render() } function setBoundsOnly(active) { boundsOnlyActive = active; if (actualNormal) actualNormal.visible = !active; if (actualAbnormal) actualAbnormal.visible = !active; actualPointLayers.forEach(layer => { layer.visible = !active }); if (selectedActualLine) selectedActualLine.material.opacity = 0; if (selectedActualPoints) selectedActualPoints.material.opacity = 0; document.getElementById("actualNormalLegend").style.display = active ? "none" : ""; document.getElementById("actualAbnormalLegend").style.display = active ? "none" : ""; document.getElementById("selectionLegendText").textContent = active ? "单击突出所选标准范围" : "单击突出所选标准与实际范围"; boundsOnlyReset.textContent = active ? "恢复时间对比" : "复位只看上下限"; clearSelection(); updateStats(); render() } function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); render(); if (drilldown.classList.contains("open")) renderDrillChart() } function animate() { requestAnimationFrame(animate); if (controls.update()) render() } controls.addEventListener("change", render); window.addEventListener("resize", resize);
+        let controlsRenderPending = true;
+        controls.addEventListener("change", () => { controlsRenderPending = true });
+        function resetCameraView() { camera.position.set(31, 18, 29); controls.target.set(0, 5.2, 0); controls.update(); render() } function setBoundsOnly(active) { boundsOnlyActive = active; if (actualNormal) actualNormal.visible = !active; if (actualAbnormal) actualAbnormal.visible = !active; actualPointLayers.forEach(layer => { layer.visible = !active }); if (selectedActualLine) selectedActualLine.material.opacity = 0; if (selectedActualPoints) selectedActualPoints.material.opacity = 0; document.getElementById("actualNormalLegend").style.display = active ? "none" : ""; document.getElementById("actualAbnormalLegend").style.display = active ? "none" : ""; document.getElementById("selectionLegendText").textContent = active ? "单击突出所选标准范围" : "单击突出所选标准与实际范围"; boundsOnlyReset.textContent = active ? "恢复时间对比" : "复位只看上下限"; clearSelection(); updateStats(); render() } function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); render(); if (drilldown.classList.contains("open")) renderDrillChart() } function animate() { requestAnimationFrame(animate); const controlsChanged = controls.update(); if (controlsChanged || controlsRenderPending) { controlsRenderPending = false; render() } } window.addEventListener("resize", resize);
         function render() {
             const comparingTime = viewMode === "compare";
             if (upperPoints) {
@@ -1907,9 +2218,52 @@
             if (!response.ok) {
                 let message = `数据库请求失败（${response.status}）`;
                 try { const body = await response.json(); if (body.error) message = body.error } catch (_) {}
-                throw new Error(message);
+                const error = new Error(message);
+                error.status = response.status;
+                throw error;
             }
             return response.json();
+        }
+        async function fetchOverviewActualRows(start, end) {
+            try {
+                return await fetchJson(`${API_BASE}/daily/all?start=${start}&end=${end}`);
+            } catch (error) {
+                if (error.status !== 404) throw error;
+            }
+            const aggregated = new Map();
+            const batchSize = 10;
+            for (let offset = 0; offset < metadataCatalog.length; offset += batchSize) {
+                const batch = metadataCatalog.slice(offset, offset + batchSize);
+                dateStatus.textContent = `旧服务兼容查询中：${Math.min(offset + batch.length, metadataCatalog.length)} / ${metadataCatalog.length}`;
+                const responses = await Promise.all(batch.map(item =>
+                    fetchJson(`${API_BASE}/daily?code=${encodeURIComponent(item.code)}&start=${start}&end=${end}`)
+                ));
+                responses.flat().forEach(row => {
+                    const key = conditionKey(row.c, row.s, row.w, row.v);
+                    const lower = Number(row.l), upper = Number(row.u), count = Number(row.n);
+                    if (!Number.isFinite(lower) || !Number.isFinite(upper) || !Number.isFinite(count) || count <= 0) return;
+                    const previous = aggregated.get(key);
+                    if (previous) {
+                        previous.l = Math.min(previous.l, lower);
+                        previous.u = Math.max(previous.u, upper);
+                        previous.n += count;
+                    } else {
+                        aggregated.set(key, { c: row.c, s: row.s, w: row.w, v: row.v, l: lower, u: upper, n: count });
+                    }
+                });
+            }
+            return [...aggregated.values()];
+        }
+        function storeOverviewActualRows(rows, start, end) {
+            overviewActualByKey = new Map();
+            rows.forEach(row => {
+                const lower = Number(row.l), upper = Number(row.u), count = Number(row.n);
+                if (!Number.isFinite(lower) || !Number.isFinite(upper) || !Number.isFinite(count) || count <= 0) return;
+                overviewActualByKey.set(conditionKey(row.c, row.s, row.w, row.v), { lower, upper, count });
+            });
+            selectedStartDate = start;
+            selectedEndDate = end;
+            overviewComparisonActive = true;
         }
         function applyMetadataDates(item) {
             minAvailableDate = item.minDate; maxAvailableDate = item.maxDate;
@@ -1920,10 +2274,31 @@
             startDate.max = endDate.max = maxAvailableDate;
             startDate.value = selectedStartDate; endDate.value = selectedEndDate;
         }
-        async function loadOverview() {
+        function applyOverviewDates() {
+            const mins = metadataCatalog.map(item => item.minDate).filter(Boolean).sort();
+            const maxes = metadataCatalog.map(item => item.maxDate).filter(Boolean).sort();
+            minAvailableDate = mins[0] || "";
+            maxAvailableDate = maxes[maxes.length - 1] || "";
+            startDate.min = endDate.min = minAvailableDate;
+            startDate.max = endDate.max = maxAvailableDate;
+            const selectedDatesValid = selectedStartDate && selectedEndDate && selectedStartDate >= minAvailableDate && selectedEndDate <= maxAvailableDate;
+            if (!selectedDatesValid) {
+                selectedStartDate = minAvailableDate;
+                const weekEnd = new Date(Date.parse(minAvailableDate + "T00:00:00Z") + 6 * 86400000).toISOString().slice(0, 10);
+                selectedEndDate = weekEnd <= maxAvailableDate ? weekEnd : maxAvailableDate;
+            }
+            startDate.value = selectedStartDate;
+            endDate.value = selectedEndDate;
+            applyDates.disabled = startDate.disabled = endDate.disabled = !minAvailableDate || !maxAvailableDate;
+        }
+        async function loadOverview(filterState = null, preserveComparison = false) {
             dateStatus.textContent = "正在读取全部元数据上限标准…";
             applyDates.disabled = startDate.disabled = endDate.disabled = true;
             if (!overviewPayload) overviewPayload = await fetchJson(`${API_BASE}/standards/all`);
+            if (!preserveComparison) {
+                overviewActualByKey = new Map();
+                overviewComparisonActive = false;
+            }
             const conditionCount = overviewPayload.conditions.length;
             const maxByCondition = new Float64Array(conditionCount);
             maxByCondition.fill(-Infinity);
@@ -1946,17 +2321,36 @@
             dailyRecords = []; actualByKey = new Map(); viewMode = "overview";
             boundsOnlyActive = false; boundsOnlyReset.style.display = "none";
             spec.value = speed.value = "全部";
-            refreshFilterOptions(); clearSelection(); build();
-            dateStatus.textContent = "当前为全部元数据上限总览；选择单个元数据可查看上下限及时间对比";
+            applyOverviewDates();
+            applyRetainedDates(filterState);
+            applyRetainedFilters(filterState);
+            clearSelection(); build();
+            dateStatus.textContent = overviewComparisonActive
+                ? `已查询全部元数据：${selectedStartDate} 至 ${selectedEndDate}（仅显示有生产数据的点）`
+                : "当前为全部元数据上限总览；可按时间查询全部元数据是否超限";
             dateStatus.classList.remove("error");
         }
-        async function reverseToOverview(picked = null) {
+        async function reverseToOverview(picked = null, switchState = null) {
             if (metadataSwitchAnimating) return;
             metadataSwitchAnimating = true;
-            metadata.disabled = true;
+            setMetadataDisabled(true);
             controls.enabled = false;
             let collapsingLayer = null, overviewSelectedLayer = null, previousAxes = null;
             try {
+                if (switchState) {
+                    overviewDropdownFilters = switchState;
+                    const needsTimeRefresh = switchState.timeActive && (
+                        !overviewComparisonActive || selectedStartDate !== switchState.start || selectedEndDate !== switchState.end
+                    );
+                    if (needsTimeRefresh) {
+                        dateStatus.textContent = "正在准备总览时间筛选…";
+                        const overviewRows = await fetchOverviewActualRows(switchState.start, switchState.end);
+                        storeOverviewActualRows(overviewRows, switchState.start, switchState.end);
+                    } else if (!switchState.timeActive) {
+                        overviewActualByKey = new Map();
+                        overviewComparisonActive = false;
+                    }
+                }
                 // 下拉框返回总览不携带选中状态，动画开始时立即移除单点高亮覆盖层。
                 if (!picked) clearSelection();
                 if (dimensionMode === "2d") {
@@ -2009,7 +2403,7 @@
                 scene.add(previousAxes);
                 metadata.value = "__all__";
                 metadataSceneBuildMode = "to-overview";
-                await loadOverview();
+                await loadOverview(overviewDropdownFilters, overviewComparisonActive);
                 metadataSceneBuildMode = null;
                 setObjectOpacity(gridGroup, 0);
                 setObjectOpacity(labelGroup, 0);
@@ -2074,9 +2468,9 @@
                         if (upper !== null && Number.isFinite(Number(upper))) selectRow(-1, "gold", { ...condition, overviewIndex: conditionIndex, metadata: overviewPayload.metadata[metadataIndex].name, metadataCode: picked.metadataCode, lower: Number(upper), upper: Number(upper) });
                     }
                 } else clearSelection();
+                overviewDropdownFilters = null;
             } catch (error) {
-                dateStatus.textContent = error.message;
-                dateStatus.classList.add("error");
+                await restoreOverviewAfterTransitionFailure(error, overviewDropdownFilters);
             } finally {
                 standardUpperTransition = null;
                 metadataSceneBuildMode = null;
@@ -2087,26 +2481,63 @@
                     disposeObject(previousAxes);
                 }
                 metadataSwitchAnimating = false;
-                metadata.disabled = false;
+                setMetadataDisabled(false);
                 controls.enabled = true;
                 controls.enableRotate = true;
                 controls.update();
                 render();
             }
         }
-        async function loadOverviewWithFade() { await reverseToOverview(null) }
-        async function loadStandards() {
+        async function loadOverviewWithFade(filterState = null) { await reverseToOverview(null, filterState) }
+        async function loadStandards({ deferBuild = false, prefetchedRecords = null, filterState = null, requestVersion = null } = {}) {
             const item = metadataCatalog.find(row => row.code === metadata.value);
             if (!item) return;
             dateStatus.textContent = "正在读取上下限标准…"; applyDates.disabled = true;
             startDate.disabled = endDate.disabled = false;
-            records = await fetchJson(`${API_BASE}/standards?code=${encodeURIComponent(item.code)}`);
+            const loadedRecords = prefetchedRecords !== null ? prefetchedRecords : await fetchJson(`${API_BASE}/standards?code=${encodeURIComponent(item.code)}`);
+            if (requestVersion !== null && requestVersion !== dataRequestVersion) return false;
+            records = alignRecordsToOverviewCoordinates(loadedRecords);
             dailyRecords = []; actualByKey = new Map(); viewMode = "standard";
             boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限";
             boundsOnlyReset.style.display = "none"; spec.value = speed.value = "全部";
-            applyMetadataDates(item); refreshFilterOptions(); clearSelection(); build();
-            dateStatus.textContent = "未查询时间，当前只显示上下限标准";
-            dateStatus.classList.remove("error"); applyDates.disabled = false;
+            applyMetadataDates(item);
+            applyRetainedDates(filterState);
+            applyRetainedFilters(filterState);
+            clearSelection();
+            if (!deferBuild) {
+                build();
+                dateStatus.textContent = "未查询时间，当前只显示上下限标准";
+                dateStatus.classList.remove("error");
+            }
+            applyDates.disabled = false;
+            return true;
+        }
+        async function loadMetadataTimeComparison(code, start, end, prefetchedDailyRecords = null, filterState = null, requestVersion = null) {
+            const loadedDailyRecords = prefetchedDailyRecords !== null ? prefetchedDailyRecords : await fetchJson(`${API_BASE}/daily?code=${encodeURIComponent(code)}&start=${start}&end=${end}`);
+            if (requestVersion !== null && requestVersion !== dataRequestVersion) return false;
+            dailyRecords = loadedDailyRecords;
+            minAvailableDate = !minAvailableDate || start < minAvailableDate ? start : minAvailableDate;
+            maxAvailableDate = !maxAvailableDate || end > maxAvailableDate ? end : maxAvailableDate;
+            startDate.min = endDate.min = minAvailableDate;
+            startDate.max = endDate.max = maxAvailableDate;
+            selectedStartDate = start;
+            selectedEndDate = end;
+            startDate.value = start;
+            endDate.value = end;
+            actualByKey = aggregateActual(start, end);
+            viewMode = "compare";
+            boundsOnlyActive = false;
+            boundsOnlyReset.textContent = "复位只看上下限";
+            document.getElementById("actualNormalLegend").style.display = "";
+            document.getElementById("actualAbnormalLegend").style.display = "";
+            document.getElementById("selectionLegendText").textContent = "单击突出所选标准与实际范围";
+            boundsOnlyReset.style.display = "";
+            closeDrilldown();
+            clearSelection();
+            applyRetainedFilters(filterState);
+            build();
+            updateDateStatusForSpec();
+            return true;
         }
         function renderMetadataOptions(query = "", selectedCode = metadata.value || "__all__") {
             const keyword = query.trim().toLocaleLowerCase("zh-CN");
@@ -2133,6 +2564,24 @@
                 metadata.appendChild(option);
             });
             if ([...metadata.options].some(option => option.value === selectedCode)) metadata.value = selectedCode;
+            const choices = [];
+            const overviewChoice = { code: "__all__", name: "全部元数据上限总览" };
+            if (!keyword || overviewChoice.name.toLocaleLowerCase("zh-CN").includes(keyword)) choices.push(overviewChoice);
+            visibleItems.forEach(item => choices.push({ code: item.code, name: item.name }));
+            metadataOptions.innerHTML = choices.length ? "" : '<div class="metadata-empty">没有匹配的元数据</div>';
+            choices.forEach(item => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "metadata-option" + (item.code === "__all__" ? " overview-option" : "") + (item.code === selectedCode ? " active" : "");
+                button.dataset.code = item.code;
+                button.setAttribute("role", "option");
+                button.setAttribute("aria-selected", item.code === selectedCode ? "true" : "false");
+                button.textContent = item.name;
+                metadataOptions.appendChild(button);
+            });
+            metadataTriggerText.textContent = selectedCode === "__all__"
+                ? "全部元数据上限总览"
+                : (metadataCatalog.find(item => item.code === selectedCode)?.name || metadata.selectedOptions[0]?.textContent || "请选择元数据");
         }
         async function loadMetadataCatalog() {
             metadataCatalog = await fetchJson(`${API_BASE}/metadata`);
@@ -2141,22 +2590,36 @@
             await loadOverview();
         }
         async function applyDateSelection() {
-            if (metadata.value === "__all__") { dateStatus.textContent = "请先选择一个元数据，再查询时间段实际上下限"; dateStatus.classList.add("error"); return }
             const start = startDate.value, end = endDate.value, days = inclusiveDays(start, end);
             if (!start || !end || end < start) { dateStatus.textContent = "结束日期不能早于开始日期"; dateStatus.classList.add("error"); return }
             if (days < 7 || days > 365) { dateStatus.textContent = `请选择7～365天，当前${days}天`; dateStatus.classList.add("error"); return }
+            const requestVersion = ++dataRequestVersion;
+            const requestedMetadata = metadata.value;
+            const requestIsCurrent = () => requestVersion === dataRequestVersion
+                && metadata.value === requestedMetadata
+                && startDate.value === start
+                && endDate.value === end;
             applyDates.disabled = true; dateStatus.textContent = "正在查询实际数据…"; dateStatus.classList.remove("error");
             try {
-                dailyRecords = await fetchJson(`${API_BASE}/daily?code=${encodeURIComponent(metadata.value)}&start=${start}&end=${end}`);
-                selectedStartDate = start; selectedEndDate = end; actualByKey = aggregateActual(start, end);
-                viewMode = "compare"; boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限";
-                document.getElementById("actualNormalLegend").style.display = "";
-                document.getElementById("actualAbnormalLegend").style.display = "";
-                document.getElementById("selectionLegendText").textContent = "单击突出所选标准与实际范围";
-                boundsOnlyReset.style.display = "";
-                closeDrilldown(); clearSelection(); refreshFilterOptions(); updateDateStatusForSpec(); build();
-            } catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error") }
-            finally { applyDates.disabled = false }
+                if (metadata.value === "__all__") {
+                    const overviewRows = await fetchOverviewActualRows(start, end);
+                    if (!requestIsCurrent()) return;
+                    storeOverviewActualRows(overviewRows, start, end);
+                    viewMode = "overview";
+                    closeDrilldown(); clearSelection(); refreshFilterOptions(); build();
+                    dateStatus.textContent = `已查询全部元数据：${start} 至 ${end}（${days}天），仅显示有生产数据的点`;
+                    return;
+                }
+                const metadataRows = await fetchJson(`${API_BASE}/daily?code=${encodeURIComponent(requestedMetadata)}&start=${start}&end=${end}`);
+                if (!requestIsCurrent()) return;
+                await loadMetadataTimeComparison(requestedMetadata, start, end, metadataRows);
+            } catch (error) {
+                if (requestVersion === dataRequestVersion) {
+                    dateStatus.textContent = error.message;
+                    dateStatus.classList.add("error");
+                }
+            }
+            finally { if (requestVersion === dataRequestVersion) applyDates.disabled = false }
         }
         boundsOnlyReset.onclick = () => {
             setBoundsOnly(!boundsOnlyActive);
@@ -2166,12 +2629,38 @@
         view3dButton.onclick = () => switchDimension("3d", { preserveSelection: Boolean(selectedRowData) });
         view2dButton.onclick = () => switchDimension("2d", { preserveSelection: Boolean(selectedRowData) });
         applyDates.onclick = applyDateSelection;
+        function closeMetadataMenu() {
+            metadataPicker.classList.remove("open");
+            metadataTrigger.setAttribute("aria-expanded", "false");
+        }
+        metadataTrigger.addEventListener("click", () => {
+            if (metadataTrigger.disabled) return;
+            const opening = !metadataPicker.classList.contains("open");
+            metadataPicker.classList.toggle("open", opening);
+            metadataTrigger.setAttribute("aria-expanded", opening ? "true" : "false");
+            if (opening) {
+                metadataSearch.value = "";
+                renderMetadataOptions("", metadata.value);
+                requestAnimationFrame(() => metadataSearch.focus());
+            }
+        });
+        metadataOptions.addEventListener("click", event => {
+            const option = event.target.closest("[data-code]");
+            if (!option) return;
+            metadata.value = option.dataset.code;
+            closeMetadataMenu();
+            metadata.dispatchEvent(new Event("change"));
+        });
+        document.addEventListener("pointerdown", event => {
+            if (!metadataPicker.contains(event.target)) closeMetadataMenu();
+        });
         metadataSearch.addEventListener("input", () => renderMetadataOptions(metadataSearch.value));
         metadataSearch.addEventListener("keydown", event => {
             if (event.key === "Escape") {
                 metadataSearch.value = "";
-                renderMetadataOptions();
-                metadataSearch.blur();
+                renderMetadataOptions("", metadata.value);
+                closeMetadataMenu();
+                metadataTrigger.focus();
                 return;
             }
             if (event.key !== "Enter") return;
@@ -2181,24 +2670,53 @@
             if (!first) return;
             event.preventDefault();
             metadata.value = first.code;
+            closeMetadataMenu();
             metadata.dispatchEvent(new Event("change"));
         });
         metadata.onchange = async () => {
+            const switchRequestVersion = ++dataRequestVersion;
+            const retainedFilters = captureFilterState();
             const selectedCode = metadata.value;
+            closeMetadataMenu();
             metadataSearch.value = "";
             renderMetadataOptions("", selectedCode);
             closeDrilldown();
             try {
-                if (metadata.value === "__all__") await (viewMode === "overview" ? loadOverview() : loadOverviewWithFade());
+                if (metadata.value === "__all__") {
+                    if (viewMode === "overview") await loadOverview(retainedFilters, retainedFilters.timeActive);
+                    else await loadOverviewWithFade(retainedFilters);
+                }
                 else if (viewMode === "overview" && dimensionMode === "3d") await selectMetadataFromOverview();
-                else await loadStandards();
+                else if (retainedFilters.timeActive) {
+                    const standardsLoaded = await loadStandards({ deferBuild: true, filterState: retainedFilters, requestVersion: switchRequestVersion });
+                    if (!standardsLoaded) return;
+                    await loadMetadataTimeComparison(selectedCode, retainedFilters.start, retainedFilters.end, null, retainedFilters, switchRequestVersion);
+                } else {
+                    await loadStandards({ filterState: retainedFilters, requestVersion: switchRequestVersion });
+                }
             }
-            catch (error) { dateStatus.textContent = error.message; dateStatus.classList.add("error"); applyDates.disabled = false }
+            catch (error) {
+                if (switchRequestVersion === dataRequestVersion) {
+                    dateStatus.textContent = error.message;
+                    dateStatus.classList.add("error");
+                    applyDates.disabled = false;
+                }
+            }
         };
-        spec.onchange = () => { closeDrilldown(); updateDateStatusForSpec(); build() };
-        speed.onchange = () => { closeDrilldown(); updateDateStatusForSpec(); build() };
+        function rebuildAfterConditionFilter() {
+            closeDrilldown();
+            clearSelection();
+            lastPick = null;
+            tooltip.style.display = "none";
+            updateDateStatusForSpec();
+            build();
+        }
+        spec.onchange = () => { refreshFilterOptions("spec"); rebuildAfterConditionFilter() };
+        speed.onchange = () => { refreshFilterOptions("speed"); rebuildAfterConditionFilter() };
         resetFilters.onclick = () => {
+            dataRequestVersion++;
             closeDrilldown(); viewMode = metadata.value === "__all__" ? "overview" : "standard"; dailyRecords = []; actualByKey = new Map();
+            if (viewMode === "overview") { overviewActualByKey = new Map(); overviewComparisonActive = false; }
             boundsOnlyActive = false; boundsOnlyReset.textContent = "复位只看上下限"; boundsOnlyReset.style.display = "none";
             dateStatus.textContent = viewMode === "overview" ? "当前为全部元数据上限总览；选择单个元数据可查看上下限及时间对比" : "未查询时间，当前只显示上下限标准"; dateStatus.classList.remove("error");
             spec.value = speed.value = "全部"; clearSelection(); refreshFilterOptions(); build();

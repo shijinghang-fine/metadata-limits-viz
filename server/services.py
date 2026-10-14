@@ -78,6 +78,7 @@ def list_all_standards(mysql_config):
         ],
         "conditions": conditions,
         "upperValues": data["upper_values"],
+        "lowerValues": data["lower_values"],
     }
 
 
@@ -124,6 +125,25 @@ def list_daily_limits(mysql_config, metadata_code, start_date, end_date):
     return [
         {
             "d": row["stat_date"].isoformat(),
+            "c": row["metadata_code"],
+            "s": row["steel_grade"],
+            "w": row["width"],
+            "v": float(row["casting_speed"]),
+            "l": row["min_value"],
+            "u": row["max_value"],
+            "n": row["valid_count"],
+        }
+        for row in rows
+    ]
+
+
+def list_all_daily_limits(mysql_config, start_date, end_date):
+    """返回全部元数据在日期范围内按工艺条件聚合的实际范围。"""
+    rows = mysql_repository.fetch_all_daily_limits(
+        mysql_config, start_date, end_date
+    )
+    return [
+        {
             "c": row["metadata_code"],
             "s": row["steel_grade"],
             "w": row["width"],

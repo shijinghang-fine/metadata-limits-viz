@@ -24,6 +24,7 @@ def create_api(config_file, chart_file):
     - ``GET /api/standards/all``：返回全部元数据的浇铸模式标准。
     - ``GET /api/standards?code=...``：返回指定元数据标准上下限。
     - ``GET /api/daily?code=...&start=...&end=...``：返回每日实际上下限。
+    - ``GET /api/daily/all?start=...&end=...``：返回全部元数据的时间范围统计。
     """
     api = Flask(__name__)
     mysql_config = mysql_repository.load_result_mysql_config(config_file)
@@ -73,6 +74,15 @@ def create_api(config_file, chart_file):
         return jsonify(
             services.list_daily_limits(mysql_config, code, start, end)
         )
+
+    @api.get("/api/daily/all")
+    def all_daily():
+        """提供全部元数据在日期范围内的实际上下限统计。"""
+        start = request.args.get("start", "").strip()
+        end = request.args.get("end", "").strip()
+        if not start or not end:
+            return jsonify({"error": "缺少日期范围"}), 400
+        return jsonify(services.list_all_daily_limits(mysql_config, start, end))
 
     LOGGER.info("数据接口已创建，配置=%s，页面=%s", config_file, chart_path)
     return api
